@@ -1,0 +1,7 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+data=np.loadtxt("/home/physics/다운로드/circular.txt",float)
+print("data.shape=",data.shape)
+plt.imshow(data)
+plt.show()
