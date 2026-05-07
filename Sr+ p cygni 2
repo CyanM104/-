@@ -30,10 +30,10 @@ def core_flux_analytic(lambd, T_prime, beta, mu_fixed=0.6):
     gamma = 1.0 / np.sqrt(1.0 - beta ** 2)
     delta_fixed = gamma * (1.0 + beta * mu_fixed)
     front_term = np.pi * (1.0 + 2.0 * beta) * gamma
-    
+
     exponent = np.clip(C2_L / (delta_fixed * lambd * T_prime), None, 700)
     planck_raw = (C1_L / lambd ** 5) / (np.exp(exponent) - 1.0)
-    
+
     return front_term * (1.0 / delta_fixed ** 3) * planck_raw
 
 @custom_model
