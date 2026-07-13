@@ -359,7 +359,7 @@ def main():
     res_r = (interp_r - fit_lum) * 100.0
     diff_models = (interp_r - interp_c) * 100.0
 
-    continuum_full = calc_relativistic_continuum(wave, bb_popt[0], 0.218, bb_popt[1])
+    continuum_full = calc_relativistic_continuum(wave, bb_popt[0], 0.2, bb_popt[1])
 
     fig, (ax0, ax1, ax2) = plt.subplots(3, 1, figsize=(12, 14),
                                         gridspec_kw={'height_ratios': [1.2, 1.6, 1.0]})
