@@ -1,0 +1,411 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import urllib.request
+import io
+import re
+import numba
+import scipy
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import scipy.integrate as integ
+from scipy.optimize import curve_fit
+from scipy.interpolate import interp1d
+from scipy import constants
+import astropy.units as units
+import astropy.constants as csts
+from iminuit import Minuit
+import warnings
+
+warnings.filterwarnings("ignore")
+
+h_planck = constants.h
+c_speed = constants.c
+k_B = constants.k
+C1_rel = 2.0 * h_planck * c_speed ** 2
+C2_rel = (h_planck * c_speed) / k_B
+
+@numba.njit
+def bb_relativistic_integrand(mu_prime, wav_m, T_prime, beta, gamma):
+    delta = gamma * (1.0 + beta * mu_prime)
+    exponent = C2_rel / (delta * wav_m * T_prime)
+    if exponent > 700.0: return 0.0
+    planck_raw = (C1_rel / wav_m ** 5) / (np.exp(exponent) - 1.0)
+    return (1.0 / delta ** 3) * planck_raw * (mu_prime + beta)
+
+@numba.njit
+def calc_relativistic_continuum(wave_AA, T_prime, beta, scale, n_steps=40):
+    wave_m = wave_AA * 1e-10
+    gamma = 1.0 / np.sqrt(1.0 - beta ** 2)
+    front_term = 2.0 * np.pi * gamma
+    result = np.zeros(len(wave_m))
+    dmu = 1.0 / n_steps
+
+    for i in range(len(wave_m)):
+        wav = wave_m[i]
+        integral_half = 0.0
+        for j in range(n_steps):
+            mu = (j + 0.5) * dmu
+            integral_half += bb_relativistic_integrand(mu, wav, T_prime, beta, gamma) * dmu
+        result[i] = front_term * integral_half * scale
+    return result
+
+@numba.njit
+def calc_r_class(p, z):
+    return np.sqrt(p**2 + z**2)
+
+@numba.njit
+def calc_tau_class(r, t, vdet_min, vdet_max, tauref, ve):
+    v = r / t
+    if v >= vdet_min and v <= vdet_max:
+        return tauref * np.exp(-v / ve)
+    return np.float32(1e-20)
+
+@numba.njit
+def calc_z_class(nu, nu0, t, c):
+    return c * t * (1.0 - nu0 / nu)
+
+@numba.njit
+def S_class(p, z, vmax, vphot, t, vdet_min, vdet_max, tauref, ve):
+    r = calc_r_class(p, z)
+    if r > vmax * t or r < vphot * t:
+        return 0.0
+    elif z < 0.0 and p < vphot * t:
+        return 0.0
+    else:
+        val = 1.0 - (vphot * t / r)**2
+        if val < 0.0: return 0.0
+        W = (1.0 - np.sqrt(val)) / 2.0
+        return W * 1.0
+
+@numba.njit(fastmath=True, nogil=True)
+def Iemit_class_fit(p, nu, vmax, vphot, t, vdet_min, vdet_max, tauref, ve, c, nu0):
+    if vphot >= vmax or ve <= 0: return 0.0
+    z = calc_z_class(nu, nu0, t, c)
+    r = calc_r_class(p, z)
+
+    if r > vmax * t or r < vphot * t:
+        tau = 0.0
+    elif z < 0.0 and p < vphot * t:
+        tau = 0.0
+    else:
+        tau = calc_tau_class(r, t, vdet_min, vdet_max, tauref, ve)
+
+    I_init = 1.0 if p < vphot * t else 0.0
+    S_src = S_class(p, z, vmax, vphot, t, vdet_min, vdet_max, tauref, ve)
+
+    I_comoving = I_init * np.exp(-tau) + S_src * (1.0 - np.exp(-tau))
+    return I_comoving * p
+
+@numba.cfunc(numba.f8(numba.i4, numba.types.CPointer(numba.f8)))
+def get_Iemit_class_fit(n, ptr):
+    temp = numba.carray(ptr, n)
+    return Iemit_class_fit(temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7], temp[8], temp[9], temp[10])
+
+@numba.njit
+def calc_r_rel(p, z):
+    return np.sqrt(p**2 + z**2)
+
+@numba.njit
+def calc_tau_base_rel(r, t, vdet_min, vdet_max, tauref, vref, ve):
+    v = r / t
+    if v >= vdet_min and v <= vdet_max:
+        return tauref * np.exp((vref - v) / ve)
+    return 0.0
+
+@numba.njit
+def tau_anisotropic(r, mu, t, vdet_min, vdet_max, tauref, vref, ve, c):
+    if r <= vdet_min * t: return 0.0
+    tau_radial = calc_tau_base_rel(r, t, vdet_min, vdet_max, tauref, vref, ve)
+    beta = (r / t) / c
+    if beta >= 1.0: return 1e10
+    gamma = 1.0 / np.sqrt(1.0 - beta**2)
+    num = (1.0 - mu * beta)**2
+    den = gamma * (1.0 - mu * beta - (beta**2) * (1.0 - mu**2))
+    if den == 0: return 1e10
+    return tau_radial * (num / den)
+
+@numba.njit
+def calc_z_rel(p, nu, nu0, t, c):
+    A = (nu0 / nu)**2
+    beta_p = p / (c * t)
+    if beta_p >= 1.0: return np.inf
+    a = 1.0 + A
+    b = -2.0
+    c_coef = 1.0 - A * (1.0 - beta_p**2)
+    discriminant = b**2 - 4.0 * a * c_coef
+    if discriminant < 0.0: return np.inf
+    beta_z = (-b - np.sqrt(discriminant)) / (2.0 * a)
+    return beta_z * c * t
+
+@numba.njit
+def S_rel_exact(p, z, r, vmax, vphot, t, vdet_min, vdet_max, tauref, vref, ve, c, n_steps):
+    if r > vmax * t or r <= vphot * t: return 0.0
+    if z < 0.0 and p <= vphot * t: return 0.0
+
+    beta = (r / t) / c
+    if beta >= 1.0: return 0.0
+    val_phot = 1.0 - (vphot * t / r)**2
+    if val_phot < 0.0: return 0.0
+    mu_phot = np.sqrt(val_phot)
+    mu_c_comoving = (mu_phot - beta) / (1.0 - beta * mu_phot)
+
+    n_steps_int = int(n_steps)
+    dmu0_1 = 2.0 / n_steps_int
+    beta1 = 0.0
+    for i in range(n_steps_int):
+        mu0 = -1.0 + (i + 0.5) * dmu0_1
+        mu = (mu0 + beta) / (1.0 + beta * mu0)
+        tau_val = tau_anisotropic(r, mu, t, vdet_min, vdet_max, tauref, vref, ve, c)
+        esc = 1.0 - tau_val / 2.0 if tau_val < 1e-5 else (1.0 - np.exp(-tau_val)) / tau_val
+        beta1 += esc * dmu0_1
+    beta1 *= 0.5
+
+    dmu0_3 = (1.0 - mu_c_comoving) / n_steps_int
+    beta3 = 0.0
+    for i in range(n_steps_int):
+        mu0 = mu_c_comoving + (i + 0.5) * dmu0_3
+        mu = (mu0 + beta) / (1.0 + beta * mu0)
+        tau_val = tau_anisotropic(r, mu, t, vdet_min, vdet_max, tauref, vref, ve, c)
+        esc = 1.0 - tau_val / 2.0 if tau_val < 1e-5 else (1.0 - np.exp(-tau_val)) / tau_val
+        beta3 += esc * dmu0_3
+    beta3 *= 0.5
+
+    if beta1 > 0.0: return beta3 / beta1
+    return 0.0
+
+@numba.njit(fastmath=True, nogil=True)
+def Iemit_exact_fit(p, nu, vmax, vphot, t, vdet_min, vdet_max, tauref, vref, ve, c, nu0, n_steps):
+    if vphot >= vmax or ve <= 0: return 0.0
+    z = calc_z_rel(p, nu, nu0, t, c)
+    if np.isinf(z): return 0.0
+    r = calc_r_rel(p, z)
+
+    if z < 0.0 and p <= vphot * t: tau = 0.0
+    else: tau = tau_anisotropic(r, z/r, t, vdet_min, vdet_max, tauref, vref, ve, c) if r > 0 else 0.0
+
+    I_init = 1.0 if (p <= vphot * t) else 0.0
+    S_src = S_rel_exact(p, z, r, vmax, vphot, t, vdet_min, vdet_max, tauref, vref, ve, c, n_steps)
+
+    I_comoving = I_init * np.exp(-tau) + S_src * (1.0 - np.exp(-tau))
+    return I_comoving * (nu / nu0)**3 * p
+
+@numba.cfunc(numba.f8(numba.i4, numba.types.CPointer(numba.f8)))
+def get_Iemit_exact_fit(n, ptr):
+    temp = numba.carray(ptr, n)
+    return Iemit_exact_fit(temp[0], temp[1], temp[2], temp[3], temp[4], temp[5], temp[6], temp[7], temp[8], temp[9], temp[10], temp[11], temp[12])
+
+
+class PcygniCalculator(object):
+    def __init__(self, t, vmax, vphot, ve, tauref, lam0, model_type="relativistic"):
+        self.model_type = model_type
+        self._t, self._vmax, self._vphot, self._vref = float(t), float(vmax), float(vphot), 0.0
+        self._ve, self._c = float(ve), csts.c.cgs.value
+        self._rmax, self._lam0 = self._t * self._vmax, float(lam0)
+        self._nu0 = self._c / self._lam0
+        self._tauref, self._n_steps = float(tauref), 30.0
+
+        beta_max = self._vmax / self._c
+        lam_max_rel = self._lam0 * np.sqrt((1.0 + beta_max) / (1.0 - beta_max))
+        lam_min_rel = self._lam0 * np.sqrt((1.0 - beta_max) / (1.0 + beta_max))
+
+        self._nu_min = self._c / (lam_max_rel * 1.05)
+        self._nu_max = self._c / (lam_min_rel * 0.95)
+
+        if self.model_type == "classical":
+            self.args = (self._vmax, self._vphot, self._t, self._vphot, self._vmax, self._tauref, self._ve, self._c, self._nu0)
+            self._Iemit = scipy.LowLevelCallable(get_Iemit_class_fit.ctypes)
+        else:
+            self.args = (self._vmax, self._vphot, self._t, self._vphot, self._vmax, self._tauref, self._vref, self._ve, self._c, self._nu0, self._n_steps)
+            self._Iemit = scipy.LowLevelCallable(get_Iemit_exact_fit.ctypes)
+
+    def calc_profile_Flam(self, npoints=30):
+        nu_arr = np.linspace(self._nu_min, self._nu_max, npoints)
+        Fnu = []
+        for n in nu_arr:
+            res, _ = integ.quad(self._Iemit, 0.0, self._rmax, args=(n, *self.args), epsabs=1e-2, epsrel=1e-2, limit=30)
+            Fnu.append(res)
+        Fnu = np.array(Fnu)
+        lam = (nu_arr * units.Hz).to("AA", equivalencies=units.spectral())[::-1]
+
+        baseline = Fnu[0] if self.model_type == "classical" else Fnu[0] * (nu_arr / nu_arr[0])**3
+        F_lambda_normed = (Fnu / baseline)[::-1]
+        return lam.value, F_lambda_normed
+
+
+def load_and_normalize_data(url):
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urllib.request.urlopen(req) as response:
+        raw_data = response.read().decode('utf-8')
+    raw_data = re.sub(r'(?<=\d)[Dd](?=[+-]?\d)', 'E', raw_data)
+
+    df = pd.read_csv(io.StringIO(raw_data), sep=r'\s+', comment='#', header=None, on_bad_lines='skip')
+
+    wave_raw = pd.to_numeric(df[0], errors='coerce').values
+    flux_raw = pd.to_numeric(df[1], errors='coerce').values
+    err_raw = pd.to_numeric(df[3], errors='coerce').values
+
+    valid = ~np.isnan(wave_raw) & ~np.isnan(flux_raw) & ~np.isnan(err_raw)
+    wave = wave_raw[valid]
+    flux = flux_raw[valid]
+    err = err_raw[valid]
+
+    if wave.max() < 3000:
+        wave = wave * 10
+
+    mask = (wave >= 3000) & (wave <= 23000)
+    wave, flux, err = wave[mask], flux[mask], err[mask]
+
+    cont_mask = (
+        ((wave >= 3500) & (wave < 7200)) |
+        ((wave > 10800) & (wave < 13000)) |
+        ((wave > 14000) & (wave < 18000)) |
+        ((wave > 19000) & (wave <= 22500))
+    )
+
+    def relativistic_bb_fit_wrapper(wave_AA, T_prime, scale):
+        return calc_relativistic_continuum(wave_AA, T_prime, 0.218, scale)
+
+    popt, pcov = curve_fit(
+        relativistic_bb_fit_wrapper,
+        wave[cont_mask][::25],
+        flux[cont_mask][::25],
+        p0=[5000, 1e-15]
+    )
+
+    continuum = calc_relativistic_continuum(wave, popt[0], 0.218, popt[1])
+    perr = np.sqrt(np.diag(pcov))
+
+    return wave, flux / continuum, err / continuum, popt, perr, flux, err, cont_mask
+
+
+def fit_p_cygni(model_type, wav, lum, lum_err, wav_min=7200, wav_max=10600):
+    mask = (wav > wav_min) & (wav < wav_max)
+    fit_wav, fit_lum, fit_err = wav[mask][::6], lum[mask][::6], lum_err[mask][::6]
+
+    def LLS(N, vmax, vphot, ve, tau):
+        margin = 0.02 if model_type == "relativistic" else 0.01
+        if vphot >= vmax or (vmax - vphot) < margin: return 1e12
+        if ve <= 0.005 or tau <= 0.005 or N <= 0.005: return 1e12
+
+        prof_calc = PcygniCalculator(
+            t=1.43 * 24.0 * 3600.0,
+            vmax=vmax * csts.c.cgs.value,
+            vphot=vphot * csts.c.cgs.value,
+            ve=ve * csts.c.cgs.value,
+            tauref=(8.1 / 13.8) * tau,
+            lam0=10327.311e-8,
+            model_type=model_type
+        )
+
+        v_wav, v_flux = prof_calc.calc_profile_Flam(25)
+        prof = interp1d(v_wav, v_flux, bounds_error=False, fill_value=1.0)
+        lum_p = (prof(fit_wav) - 1.0) / N + 1.0
+        return np.sum(((fit_lum - lum_p) / fit_err)**2)
+
+    if model_type == "relativistic":
+        m = Minuit(LLS, N=0.5, vmax=0.38, vphot=0.22, ve=0.10, tau=2.0)
+        m.limits = [(0.01, 5.0), (0.22, 0.55), (0.10, 0.35), (0.01, 0.30), (0.1, 10.0)]
+    else:
+        m = Minuit(LLS, N=0.5, vmax=0.32, vphot=0.18, ve=0.12, tau=0.5)
+        m.limits = [(0.01, 4.0), (0.20, 0.50), (0.08, 0.30), (0.01, 0.25), (0.01, 5.0)]
+
+    m.errordef = Minuit.LEAST_SQUARES
+    m.tol = 1.0
+    m.migrad(ncall=1500)
+    return m, fit_wav, fit_lum, fit_err
+
+
+def main():
+    url = "https://sid.erda.dk/share_redirect/df1fMhon6Z/dereddened%2Bderedshifted_spectra/AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969_Phase%2B1.43d_deredz.dat"
+
+    wave, flux_ratio, flux_err, bb_popt, bb_perr, raw_flux, raw_err, cont_mask = load_and_normalize_data(url)
+
+    m_class, fit_wav, fit_lum, fit_err = fit_p_cygni("classical", wave, flux_ratio, flux_err)
+    m_rel, _, _, _ = fit_p_cygni("relativistic", wave, flux_ratio, flux_err)
+
+    print("\n최적화 결과")
+    print(f" 상대론적 고유 온도 (T_prime)   : {bb_popt[0]:.2f} ± {bb_perr[0]:.2f} K")
+    print(f" 상대론적 스케일 (Scale Factor) : {bb_popt[1]:.4e} ± {bb_perr[1]:.4e}")
+
+    print("\n 고전적 모델")
+    for p, v in zip(m_class.parameters, m_class.values):
+        print(f"    {p:5s} = {v:8.4f}")
+    print("\n [상대론적 모델")
+    for p, v in zip(m_rel.parameters, m_rel.values):
+        print(f"    {p:5s} = {v:8.4f}")
+
+    def get_best_curve(m_result, m_type):
+        calc = PcygniCalculator(
+            t=1.43 * 24.0 * 3600.0,
+            vmax=m_result.values["vmax"] * csts.c.cgs.value,
+            vphot=m_result.values["vphot"] * csts.c.cgs.value,
+            ve=m_result.values["ve"] * csts.c.cgs.value,
+            tauref=(8.1 / 13.8) * m_result.values["tau"],
+            lam0=10327.311e-8,
+            model_type=m_type
+        )
+        w, f = calc.calc_profile_Flam(60)
+        return w, (f - 1.0) / m_result.values["N"] + 1.0
+
+    wav_c, flux_c = get_best_curve(m_class, "classical")
+    wav_r, flux_r = get_best_curve(m_rel, "relativistic")
+
+    interp_c = interp1d(wav_c, flux_c, bounds_error=False, fill_value=1.0)(fit_wav)
+    interp_r = interp1d(wav_r, flux_r, bounds_error=False, fill_value=1.0)(fit_wav)
+
+    res_c = (interp_c - fit_lum) * 100.0
+    res_r = (interp_r - fit_lum) * 100.0
+    diff_models = (interp_r - interp_c) * 100.0
+
+    continuum_full = calc_relativistic_continuum(wave, bb_popt[0], 0.218, bb_popt[1])
+
+    fig, (ax0, ax1, ax2) = plt.subplots(3, 1, figsize=(12, 14),
+                                        gridspec_kw={'height_ratios': [1.2, 1.6, 1.0]})
+
+    ax0.fill_between(wave, raw_flux - raw_err, raw_flux + raw_err, color='lightgrey', alpha=0.7, label='Error Shading')
+    ax0.plot(wave, raw_flux, color='black', lw=0.8, alpha=0.8, label='AT2017gfo Raw Flux')
+    ax0.plot(wave, continuum_full, color='darkorange', lw=2.5, label=f'Relativistic Planck Fit ({bb_popt[0]:.1f} K)')
+
+    ax0.axvspan(3500, 7200, color='yellow', alpha=0.12, label='Continuum Fit Window')
+    ax0.axvspan(10800, 13000, color='yellow', alpha=0.12)
+    ax0.axvspan(14000, 18000, color='yellow', alpha=0.12)
+    ax0.axvspan(19000, 22500, color='yellow', alpha=0.12)
+
+    ax0.set_xlim(wave.min(), wave.max())
+    ax0.set_ylabel(r'Raw Flux $F_\lambda$', fontsize=11)
+    ax0.set_title('Global Spectrum Continuum Baseline', fontsize=13, fontweight='bold')
+    ax0.legend(loc='upper right')
+    ax0.grid(True, alpha=0.2)
+
+    ax1.errorbar(fit_wav, fit_lum, yerr=fit_err, fmt='.', color='black',
+                 ecolor='grey', elinewidth=0.8, capsize=0, alpha=0.4, label='AT2017gfo Data')
+    ax1.plot(wav_c, flux_c, color='blue', ls='--', lw=2.5, alpha=0.8, label='Classical Fit')
+    ax1.plot(wav_r, flux_r, color='red', ls='-', lw=2.5, label='Relativistic Fit')
+
+    ax1.axhline(1.0, color='black', lw=0.8, ls='--')
+    ax1.axvline(10327.311, color='darkgreen', lw=1, ls='-.', label=r'Rest $\lambda_0$ (Sr II)')
+    ax1.set_xlim(7150, 10600)
+    ax1.set_ylabel('Normalized Flux Ratio', fontsize=11)
+    ax1.set_title('Line Profile Optimization: Classical vs Relativistic', fontsize=13, fontweight='bold')
+    ax1.legend(loc='upper right')
+    ax1.grid(True, alpha=0.2)
+
+    ax2.plot(fit_wav, res_c, color='blue', ls='--', alpha=0.4, label='Classical Residual')
+    ax2.plot(fit_wav, res_r, color='red', ls='-', alpha=0.5, label='Relativistic Residual')
+    ax2.plot(fit_wav, diff_models, color='purple', ls=':', lw=2.5, label='Model Discrepancy')
+
+    ax2.axhline(0.0, color='black', lw=1.0, ls='-', alpha=0.7)
+    ax2.set_xlim(7150, 10600)
+    ax2.set_ylim(-15, 30)
+    ax2.set_xlabel(r'Wavelength ($\AA$)', fontsize=12)
+    ax2.set_ylabel('Error Rate (%)', fontsize=11)
+    ax2.legend(loc='lower left')
+    ax2.grid(True, alpha=0.2)
+
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    main()
