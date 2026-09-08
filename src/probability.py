@@ -25,7 +25,10 @@ class MCMCProbabilityWrapper(object):
             return -np.inf
 
         # 2. Phase별 물리적 광학 두께 조건 (Arya+2026 / Chiba+2026)
-        if self.days < 2.0:
+        if self.days < 1.8:
+            if tau_sr < 0.8 or tau_he > 0.05:
+                return -np.inf
+        elif self.days < 2.0:
             # Phase +1.43d: Sr II 지배, He I 과도 피팅 차단
             if tau_sr < 0.8 or tau_he > 0.35:
                 return -np.inf
