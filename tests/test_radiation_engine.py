@@ -80,16 +80,20 @@ def test_mcmc_probability_wrapper_priors():
         (0.0, 1.0)       # trans
     ]
 
-    # hydrodynamic constraint vmax - vphot >= 0.05
+    # hydrodynamic constraint 0.03 <= vmax - vphot <= 0.25
     wrapper = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, days=1.5)
 
     # Valid theta
-    valid_theta = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.2, 0.8]  # vmax-vphot = 0.1 (>= 0.05)
+    valid_theta = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.2, 0.8]  # vmax-vphot = 0.1 (0.03 <= 0.1 <= 0.25)
     assert wrapper.log_prior(valid_theta) == 0.0
 
-    # Invalid theta: hydrodynamic constraint vmax - vphot < 0.05
-    invalid_theta_hydro = [5000.0, 1.0, 0.24, 0.2, 1.0, 0.2, 0.8] # vmax-vphot = 0.04
-    assert wrapper.log_prior(invalid_theta_hydro) == -np.inf
+    # Invalid theta: hydrodynamic constraint vmax - vphot < 0.03
+    invalid_theta_hydro_low = [5000.0, 1.0, 0.22, 0.2, 1.0, 0.2, 0.8] # vmax-vphot = 0.02
+    assert wrapper.log_prior(invalid_theta_hydro_low) == -np.inf
+
+    # Invalid theta: hydrodynamic constraint vmax - vphot > 0.25
+    invalid_theta_hydro_high = [5000.0, 1.0, 0.46, 0.2, 1.0, 0.2, 0.8] # vmax-vphot = 0.26
+    assert wrapper.log_prior(invalid_theta_hydro_high) == -np.inf
 
     # Check phase independence of tau constraints (i.e. they shouldn't exist anymore)
     valid_theta_high_tau = [5000.0, 1.0, 0.3, 0.2, 4.0, 3.0, 0.8]
