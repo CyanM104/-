@@ -34,14 +34,6 @@ class MCMCProbabilityWrapper(object):
             # Phase +2.42d: Sr II가 He I보다 여전히 우세해야 함
             if tau_sr < tau_he:
                 return -np.inf
-        elif self.days < 4.0:
-            # Phase +3.41d: Day 2보다 tau_sr이 폭증(1.68)하는 역주행 차단
-            if tau_sr > 1.2:
-                return -np.inf
-        else:
-            # Phase +4.40d: 광구 감속 조건 강제 (Day 3보다 빨라지는 비물리적 해 배제)
-            if vphot > 0.14:
-                return -np.inf
 
         return 0.0
 
