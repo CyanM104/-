@@ -125,7 +125,7 @@ def main():
             "url": "https://sid.erda.dk/share_redirect/df1fMhon6Z/dereddened%2Bderedshifted_spectra/AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969_Phase%2B1.43d_deredz.dat",
             "local_file": os.path.join(target_save_dir, "OB1_1.43d.dat"),
             "bounds": [
-                (4200.0, 5200.0),
+                (4200.0, 7000.0),
                 (0.80, 1.80),
                 (0.38, 0.50),
                 (0.27, 0.35),

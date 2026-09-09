@@ -148,14 +148,20 @@ def p_cygni_line_corr_rel_1d(wl_target, vmax, vphot, tau, lam0_AA, t0):
 @numba.njit(fastmath=True)
 def combine_optical_depths_sobolev(f_sr1, f_sr2, f_sr3, f_he, trans):
     """
-    Combines normalized line profiles physically via product/transmission
-    instead of artificial addition.
+    Combines P-Cygni line profiles by summing fractional deltas.
+    Preserves the underlying continuum baseline (1.0) away from line features.
     """
     n = len(f_sr1)
     result = np.empty(n, dtype=np.float64)
     for i in range(n):
-        profile_comb = f_sr1[i] * f_sr2[i] * f_sr3[i] * f_he[i]
-        result[i] = 1.0 + trans * (profile_comb - 1.0)
+        d1 = f_sr1[i] - 1.0
+        d2 = f_sr2[i] - 1.0
+        d3 = f_sr3[i] - 1.0
+        d_he = f_he[i] - 1.0
+
+        total_delta = trans * (d1 + d2 + d3 + d_he)
+        # Ensure physical non-negativity
+        result[i] = max(0.0, 1.0 + total_delta)
     return result
 
 def planck_with_mod_full_relativistic_nlte(
