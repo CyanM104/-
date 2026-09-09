@@ -25,6 +25,24 @@ class MCMCProbabilityWrapper(object):
         if not (0.03 <= v_diff <= 0.25) or N_29 <= 0.0:
             return -np.inf
 
+        # 3. [핵심] 시계열 물리적 제약 (Sr II / He I 축퇴 및 지그재그 방지)
+        if self.days < 2.0:
+            # Phase +1.43d: Sr II 지배적, He I 활성화 억제
+            if tau_sr < 1.0 or tau_he > 0.25:
+                return -np.inf
+        elif self.days < 3.0:
+            # Phase +2.42d: Sr II가 He I보다 여전히 우세해야 함
+            if tau_sr < tau_he:
+                return -np.inf
+        elif self.days < 4.0:
+            # Phase +3.41d: Day 2보다 tau_sr이 폭증(1.68)하는 역주행 차단
+            if tau_sr > 1.2:
+                return -np.inf
+        else:
+            # Phase +4.40d: 광구 감속 조건 강제 (Day 3보다 빨라지는 비물리적 해 배제)
+            if vphot > 0.14:
+                return -np.inf
+
         return 0.0
 
     def log_likelihood(self, theta):
