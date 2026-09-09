@@ -457,7 +457,7 @@ def main():
         )
 
         cont_zoom = (popt["N_29"] * 1e-29) * calc_relativistic_blackbody_continuum(
-            wave_zoom, popt["T_prime"], popt["vphot"]
+            wave_zoom, popt["T_prime"], popt["vphot"], t_ph
         )
 
         norm_full = model_full / cont_zoom
