@@ -142,30 +142,20 @@ def p_cygni_line_corr_rel_1d(wl_target, vmax, vphot, tau, lam0_AA, t0):
     lam_full = np.concatenate(([1000.0], [lam_arr[0] - 500.0], lam_arr, [lam_arr[-1] + 500.0], [50000.0]))
     f_full = np.concatenate(([1.0], [1.0], f_normed, [1.0], [1.0]))
 
-    inter = interp1d(lam_full, f_full, kind='cubic', bounds_error=False, fill_value=1.0)
+    inter = interp1d(lam_full, f_full, kind='linear', bounds_error=False, fill_value=1.0)
     return inter(wl_target)
 
 @numba.njit(fastmath=True)
 def combine_optical_depths_sobolev(f_sr1, f_sr2, f_sr3, f_he, trans):
+    """
+    Combines normalized line profiles physically via product/transmission
+    instead of artificial addition.
+    """
     n = len(f_sr1)
-    result = np.zeros(n)
+    result = np.empty(n, dtype=np.float64)
     for i in range(n):
-        tau_abs_1 = -np.log(np.maximum(1e-5, min(1.0, f_sr1[i])))
-        tau_abs_2 = -np.log(np.maximum(1e-5, min(1.0, f_sr2[i])))
-        tau_abs_3 = -np.log(np.maximum(1e-5, min(1.0, f_sr3[i])))
-        tau_abs_he = -np.log(np.maximum(1e-5, min(1.0, f_he[i])))
-
-        tau_total = tau_abs_1 + tau_abs_2 + tau_abs_3 + tau_abs_he
-
-        total_absorption = np.exp(-tau_total)
-
-        em_1 = np.maximum(0.0, f_sr1[i] - 1.0)
-        em_2 = np.maximum(0.0, f_sr2[i] - 1.0)
-        em_3 = np.maximum(0.0, f_sr3[i] - 1.0)
-        em_he = np.maximum(0.0, f_he[i] - 1.0)
-
-        total_emission = (em_1 + em_2 + em_3 + em_he) * trans
-        result[i] = total_absorption + total_emission
+        profile_comb = f_sr1[i] * f_sr2[i] * f_sr3[i] * f_he[i]
+        result[i] = 1.0 + trans * (profile_comb - 1.0)
     return result
 
 def planck_with_mod_full_relativistic_nlte(

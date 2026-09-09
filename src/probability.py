@@ -20,8 +20,9 @@ class MCMCProbabilityWrapper(object):
             if not (low <= val <= high):
                 return -np.inf
 
-        # 1. 유체역학적 제약: vmax - vphot >= 0.05c
-        if (vmax - vphot) < 0.05 or N_29 <= 0.0:
+        # 1. 유체역학적 제약: 0.03 <= vmax - vphot <= 0.25c, and N_29 > 0.0
+        v_diff = vmax - vphot
+        if not (0.03 <= v_diff <= 0.25) or N_29 <= 0.0:
             return -np.inf
 
         return 0.0

@@ -245,9 +245,9 @@ def main():
         pos = []
         for _ in range(nwalkers):
             while True:
-                cand = center_point + spans * 0.01 * np.random.randn(ndim)
+                cand = center_point + spans * 0.001 * np.random.randn(ndim)
                 cand = np.clip(
-                    cand, low_b + 0.01 * spans, high_b - 0.01 * spans
+                    cand, low_b + 0.001 * spans, high_b - 0.001 * spans
                 )
                 if prob_wrapper.log_prior(cand) > -1e10:
                     pos.append(cand)
