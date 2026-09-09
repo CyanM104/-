@@ -20,7 +20,12 @@ LAM_HE_10833_AA = 10833.3
 
 @numba.njit(fastmath=True)
 def alpha_tau_evolution(t_days):
-    return 1.0
+    if 1.5 < t_days <= 3.0:
+        return t_days / 1.5
+    elif 3.0 < t_days <= 5.0:
+        return 2.0 - 0.5 * (t_days - 3.0)
+    else:
+        return 1.0
 
 @numba.njit(fastmath=True)
 def relativistic_blackbody_flam(wave_m, T_prime, beta, t0_s, n_mu=16):
@@ -44,8 +49,8 @@ def relativistic_blackbody_flam(wave_m, T_prime, beta, t0_s, n_mu=16):
 
         # Emission time is t0_s + dt_em
         t_em = t0_s + dt_em
-        # Dynamic cooling: T(t_em) = T_prime * (t_em / t0_s)**-1.3
-        T_em = T_prime * (t_em / t0_s)**(-1.3)
+        # Dynamic cooling: Relaxed to -0.65 to prevent hitting Prior boundaries
+        T_em = T_prime * (t_em / t0_s)**(-0.65)
 
         delta = gamma * (1.0 + beta * mu_prime)
         lam_prime = delta * wave_m
@@ -148,20 +153,26 @@ def p_cygni_line_corr_rel_1d(wl_target, vmax, vphot, tau, lam0_AA, t0):
 @numba.njit(fastmath=True)
 def combine_optical_depths_sobolev(f_sr1, f_sr2, f_sr3, f_he, trans):
     """
-    Combines P-Cygni line profiles by summing fractional deltas.
-    Preserves the underlying continuum baseline (1.0) away from line features.
+    Correctly separates absorption and emission for physical line combinations.
     """
     n = len(f_sr1)
-    result = np.empty(n, dtype=np.float64)
+    result = np.zeros(n)
     for i in range(n):
-        d1 = f_sr1[i] - 1.0
-        d2 = f_sr2[i] - 1.0
-        d3 = f_sr3[i] - 1.0
-        d_he = f_he[i] - 1.0
+        tau_abs_1 = -np.log(np.maximum(1e-5, min(1.0, f_sr1[i])))
+        tau_abs_2 = -np.log(np.maximum(1e-5, min(1.0, f_sr2[i])))
+        tau_abs_3 = -np.log(np.maximum(1e-5, min(1.0, f_sr3[i])))
+        tau_abs_he = -np.log(np.maximum(1e-5, min(1.0, f_he[i])))
 
-        total_delta = trans * (d1 + d2 + d3 + d_he)
-        # Ensure physical non-negativity
-        result[i] = max(0.0, 1.0 + total_delta)
+        total_tau_abs = tau_abs_1 + tau_abs_2 + tau_abs_3 + tau_abs_he
+
+        em_1 = np.maximum(0.0, f_sr1[i] - 1.0)
+        em_2 = np.maximum(0.0, f_sr2[i] - 1.0)
+        em_3 = np.maximum(0.0, f_sr3[i] - 1.0)
+        em_he = np.maximum(0.0, f_he[i] - 1.0)
+
+        total_em = (em_1 + em_2 + em_3 + em_he) * trans
+
+        result[i] = np.exp(-total_tau_abs) + total_em
     return result
 
 def planck_with_mod_full_relativistic_nlte(
