@@ -25,6 +25,19 @@ class MCMCProbabilityWrapper(object):
         if not (0.03 <= v_diff <= 0.25) or N_29 <= 0.0:
             return -np.inf
 
+        # 2. 시계열 물리 제약 (Temporal & Physical Consistency Prior)
+        if self.days <= 2.5:
+            if tau_he > 0.20 or tau_sr < tau_he:
+                return -np.inf
+        elif self.days >= 3.0:
+            if tau_sr > 1.2:
+                return -np.inf
+
+            # 광구 감속 조건: Day 4의 vphot 상한을 0.14c 이하로 제한
+            if self.days > 4.0:
+                if vphot > 0.14:
+                    return -np.inf
+
         return 0.0
 
     def log_likelihood(self, theta):

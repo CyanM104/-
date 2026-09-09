@@ -95,6 +95,22 @@ def test_mcmc_probability_wrapper_priors():
     invalid_theta_hydro_high = [5000.0, 1.0, 0.46, 0.2, 1.0, 0.2, 0.8] # vmax-vphot = 0.26
     assert wrapper.log_prior(invalid_theta_hydro_high) == -np.inf
 
-    # Check phase independence of tau constraints (i.e. they shouldn't exist anymore)
-    valid_theta_high_tau = [5000.0, 1.0, 0.3, 0.2, 4.0, 3.0, 0.8]
-    assert wrapper.log_prior(valid_theta_high_tau) == 0.0
+    # Check new temporal constraints (days <= 2.5: tau_he <= 0.20, tau_sr >= tau_he)
+    invalid_theta_tau_he_high = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.3, 0.8] # tau_he > 0.20
+    assert wrapper.log_prior(invalid_theta_tau_he_high) == -np.inf
+
+    invalid_theta_tau_sr_low = [5000.0, 1.0, 0.3, 0.2, 0.1, 0.15, 0.8] # tau_sr < tau_he
+    assert wrapper.log_prior(invalid_theta_tau_sr_low) == -np.inf
+
+    # Check new temporal constraints (days >= 3.0: tau_sr <= 1.2)
+    wrapper_late = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, days=3.5)
+    valid_theta_late = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.5, 0.8] # tau_sr <= 1.2
+    assert wrapper_late.log_prior(valid_theta_late) == 0.0
+
+    invalid_theta_late_tau_sr = [5000.0, 1.0, 0.3, 0.2, 1.5, 0.5, 0.8] # tau_sr > 1.2
+    assert wrapper_late.log_prior(invalid_theta_late_tau_sr) == -np.inf
+
+    # Check Day 4 constraint (vphot <= 0.14)
+    wrapper_day4 = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, days=4.4)
+    invalid_theta_day4_vphot = [5000.0, 1.0, 0.3, 0.15, 1.0, 0.5, 0.8] # vphot > 0.14
+    assert wrapper_day4.log_prior(invalid_theta_day4_vphot) == -np.inf

@@ -35,7 +35,7 @@ def relativistic_blackbody_flam(wave_m, T_prime, beta, t0_s, n_mu=16):
     dmu = 1.0 / n_mu
     sum_flux = 0.0
 
-    R_phot = t0_s * beta * C_CGS
+    R_phot = t0_s * beta * c_speed * 100
 
     for i in range(n_mu):
         mu_prime = (i + 0.5) * dmu
@@ -45,7 +45,7 @@ def relativistic_blackbody_flam(wave_m, T_prime, beta, t0_s, n_mu=16):
         # mu in lab frame is (mu_prime + beta) / (1 + beta*mu_prime)
         mu_lab = (mu_prime + beta) / (1.0 + beta * mu_prime)
         z = R_phot * mu_lab
-        dt_em = z / C_CGS # Time delay
+        dt_em = z / (c_speed * 100) # Time delay
 
         # Emission time is t0_s + dt_em
         t_em = t0_s + dt_em
