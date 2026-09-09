@@ -20,36 +20,48 @@ LAM_HE_10833_AA = 10833.3
 
 @numba.njit(fastmath=True)
 def alpha_tau_evolution(t_days):
-    if 1.5 < t_days <= 3.0:
-        return t_days / 1.5
-    elif 3.0 < t_days <= 5.0:
-        return 2.0 - 0.5 * (t_days - 3.0)
-    else:
-        return 1.0
+    # Dynamical Optical Depth Evolution using continuous power-law energy deposition model (E_dot ~ t^-1.3)
+    return (t_days / 1.43) ** (-1.3)
 
 @numba.njit(fastmath=True)
-def relativistic_blackbody_flam(wave_m, T_prime, beta, n_mu=16):
+def relativistic_blackbody_flam(wave_m, T_prime, beta, t0_s, n_mu=16):
     if beta >= 1.0 or beta <= 0.0 or T_prime <= 0.0 or wave_m <= 0.0:
         return 0.0
     gamma = 1.0 / np.sqrt(1.0 - beta ** 2)
     dmu = 1.0 / n_mu
     sum_flux = 0.0
+
+    R_phot = t0_s * beta * C_CGS
+
     for i in range(n_mu):
         mu_prime = (i + 0.5) * dmu
+
+        # Continuum LTT & Dynamic Thermal Gradient
+        # z is line-of-sight distance. mu_prime is cosine of angle in comoving frame,
+        # mu in lab frame is (mu_prime + beta) / (1 + beta*mu_prime)
+        mu_lab = (mu_prime + beta) / (1.0 + beta * mu_prime)
+        z = R_phot * mu_lab
+        dt_em = z / C_CGS # Time delay
+
+        # Emission time is t0_s + dt_em
+        t_em = t0_s + dt_em
+        # Dynamic cooling: T(t_em) = T_prime * (t_em / t0_s)**-1.3
+        T_em = T_prime * (t_em / t0_s)**(-1.3)
+
         delta = gamma * (1.0 + beta * mu_prime)
         lam_prime = delta * wave_m
-        val_exp = (h_planck * c_speed) / (lam_prime * k_B * T_prime)
+        val_exp = (h_planck * c_speed) / (lam_prime * k_B * T_em)
         b_lam = 0.0 if val_exp > 700.0 else (2.0 * h_planck * c_speed ** 2) / ((lam_prime ** 5) * (np.exp(val_exp) - 1.0))
         sum_flux += (1.0 / (delta ** 3)) * b_lam * (mu_prime + beta) * dmu
     return 2.0 * np.pi * gamma * sum_flux
 
 @numba.njit(fastmath=True)
-def calc_relativistic_blackbody_continuum(wave_AA, T_prime, beta, n_mu=16):
+def calc_relativistic_blackbody_continuum(wave_AA, T_prime, beta, t0, n_mu=16):
     wave_m = wave_AA * 1e-10
     n = len(wave_m)
     flux = np.zeros(n)
     for i in range(n):
-        flux[i] = relativistic_blackbody_flam(wave_m[i], T_prime, beta, n_mu)
+        flux[i] = relativistic_blackbody_flam(wave_m[i], T_prime, beta, t0, n_mu)
     return flux
 
 @numba.njit(fastmath=True)
@@ -135,7 +147,7 @@ def p_cygni_line_corr_rel_1d(wl_target, vmax, vphot, tau, lam0_AA, t0):
     return inter(wl_target)
 
 @numba.njit(fastmath=True)
-def combine_optical_depths_beer_lambert(f_sr1, f_sr2, f_sr3, f_he, trans):
+def combine_optical_depths_sobolev(f_sr1, f_sr2, f_sr3, f_he, trans):
     n = len(f_sr1)
     result = np.zeros(n)
     for i in range(n):
@@ -145,14 +157,23 @@ def combine_optical_depths_beer_lambert(f_sr1, f_sr2, f_sr3, f_he, trans):
         tau_abs_he = -np.log(np.maximum(1e-5, min(1.0, f_he[i])))
 
         tau_total = tau_abs_1 + tau_abs_2 + tau_abs_3 + tau_abs_he
+
+        # Sobolev escape probability: beta_sob = (1 - exp(-tau)) / tau (with limit tau->0 as 1)
+        if tau_total > 1e-4:
+            beta_sob = (1.0 - np.exp(-tau_total)) / tau_total
+        else:
+            beta_sob = 1.0
+
         total_absorption = np.exp(-tau_total)
 
+        # Resonant scattering emission modification
         em_1 = np.maximum(0.0, f_sr1[i] - 1.0)
         em_2 = np.maximum(0.0, f_sr2[i] - 1.0)
         em_3 = np.maximum(0.0, f_sr3[i] - 1.0)
         em_he = np.maximum(0.0, f_he[i] - 1.0)
 
-        total_emission = (em_1 + em_2 + em_3 + em_he) * trans
+        # Applying Sobolev beta to emission probability coupling
+        total_emission = (em_1 + em_2 + em_3 + em_he) * trans * beta_sob
         result[i] = total_absorption + total_emission
     return result
 
@@ -160,7 +181,7 @@ def planck_with_mod_full_relativistic_nlte(
         wav, T_prime, N_29, vmax, vphot, tau_sr=1.5, tau_he=0.0, trans=0.8, t0=123552.0
 ):
     N = N_29 * 1e-29
-    intensity = calc_relativistic_blackbody_continuum(wav, T_prime, vphot, n_mu=16)
+    intensity = calc_relativistic_blackbody_continuum(wav, T_prime, vphot, t0, n_mu=16)
 
     # Sr II 가중치 정규화 (0.12 : 1.00 : 0.58)
     f3 = p_cygni_line_corr_rel_1d(wav, vmax, vphot, 0.12 * tau_sr, LAM_SR_10036_AA, t0)
@@ -172,5 +193,5 @@ def planck_with_mod_full_relativistic_nlte(
     else:
         pcyg_he = np.ones_like(wav)
 
-    total_line_mod = combine_optical_depths_beer_lambert(f3, f4, f5, pcyg_he, trans)
+    total_line_mod = combine_optical_depths_sobolev(f3, f4, f5, pcyg_he, trans)
     return N * intensity * total_line_mod
