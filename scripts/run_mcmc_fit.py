@@ -125,15 +125,10 @@ def main():
             "url": "https://sid.erda.dk/share_redirect/df1fMhon6Z/dereddened%2Bderedshifted_spectra/AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57983.969_Phase%2B1.43d_deredz.dat",
             "local_file": os.path.join(target_save_dir, "OB1_1.43d.dat"),
             "bounds": [
-                (4200.0, 6000.0),
-                (0.80, 1.80),
-                (0.38, 0.50),
-                (0.27, 0.35),
-                (0.8, 2.5),
-                (0.0, 0.50),
-                (0.01, 1.2),
+                (4200.0, 6000.0), (0.80, 1.80), (0.35, 0.50), (0.24, 0.35),
+                (1.0, 3.0), (0.0, 0.30), (0.01, 1.2)
             ],
-            "init_guess": [4800.0, 1.20, 0.42, 0.29, 1.80, 0.05, 0.35],
+            "init_guess": [4900.0, 1.30, 0.40, 0.27, 2.00, 0.05, 0.15],
         },
         {
             "label": "Phase +2.42d (OB2)",
@@ -141,15 +136,10 @@ def main():
             "url": "https://sid.erda.dk/share_redirect/df1fMhon6Z/dereddened%2Bderedshifted_spectra/AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57984.969_Phase%2B2.42d_deredz.dat",
             "local_file": os.path.join(target_save_dir, "OB2_2.42d.dat"),
             "bounds": [
-                (2900.0, 4000.0),
-                (1.50, 3.20),
-                (0.25, 0.42),
-                (0.16, 0.29),
-                (0.1, 4.0),
-                (0.0, 1.20),
-                (0.15, 1.2),
+                (2900.0, 4000.0), (1.50, 3.20), (0.25, 0.42), (0.16, 0.29),
+                (0.1, 3.0), (0.0, 1.50), (0.05, 1.2)
             ],
-            "init_guess": [3200.0, 2.10, 0.36, 0.24, 1.35, 0.30, 0.45],
+            "init_guess": [3500.0, 2.10, 0.33, 0.21, 1.50, 0.30, 0.45],
         },
         {
             "label": "Phase +3.41d (OB3)",
@@ -157,15 +147,10 @@ def main():
             "url": "https://sid.erda.dk/share_redirect/df1fMhon6Z/dereddened%2Bderedshifted_spectra/AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57985.974_Phase%2B3.41d_deredz.dat",
             "local_file": os.path.join(target_save_dir, "OB3_3.41d.dat"),
             "bounds": [
-                (2500.0, 3680.0),
-                (1.0, 5.0),
-                (0.18, 0.37),
-                (0.10, 0.25),
-                (0.1, 3.0),
-                (0.0, 3.0),
-                (0.15, 1.2),
+                (2500.0, 3680.0), (1.0, 5.0), (0.18, 0.37), (0.10, 0.25),
+                (0.1, 2.5), (0.0, 3.0), (0.05, 1.2)
             ],
-            "init_guess": [2800.0, 2.60, 0.31, 0.20, 1.20, 0.80, 0.55],
+            "init_guess": [2950.0, 2.80, 0.25, 0.14, 0.80, 0.60, 0.30],
         },
         {
             "label": "Phase +4.40d (OB4)",
@@ -173,15 +158,10 @@ def main():
             "url": "https://sid.erda.dk/share_redirect/df1fMhon6Z/dereddened%2Bderedshifted_spectra/AT2017gfo_ENGRAVE_v1.0_XSHOOTER_MJD-57986.974_Phase%2B4.40d_deredz.dat",
             "local_file": os.path.join(target_save_dir, "OB4_4.40d.dat"),
             "bounds": [
-                (2200.0, 3335.0),
-                (2.00, 4.00),
-                (0.19, 0.33),
-                (0.08, 0.18),
-                (0.1, 2.5),
-                (0.3, 2.50),
-                (0.15, 1.2),
+                (2200.0, 3300.0), (2.00, 4.50), (0.15, 0.30), (0.07, 0.14),
+                (0.05, 2.0), (0.1, 3.0), (0.05, 1.2)
             ],
-            "init_guess": [2500.0, 3.10, 0.27, 0.14, 1.00, 1.20, 0.60],
+            "init_guess": [2650.0, 3.60, 0.22, 0.10, 0.50, 1.20, 0.45],
         },
     ]
 
