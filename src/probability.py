@@ -20,25 +20,8 @@ class MCMCProbabilityWrapper(object):
             if not (low <= val <= high):
                 return -np.inf
 
-        # 1. 유체역학적 제약: vmax - vphot >= 0.08c
-        if (vmax - vphot) < 0.08 or N_29 <= 0.0:
-            return -np.inf
-
-        # 2. Phase별 물리적 광학 두께 조건 (Arya+2026 / Chiba+2026)
-        if self.days < 1.8:
-            if tau_sr < 0.8 or tau_he > 0.05:
-                return -np.inf
-        elif self.days < 2.0:
-            # Phase +1.43d: Sr II 지배, He I 과도 피팅 차단
-            if tau_sr < 0.8 or tau_he > 0.35:
-                return -np.inf
-        elif self.days < 3.0:
-            # Phase +2.42d: Sr II 지배 지속
-            if tau_sr < tau_he:
-                return -np.inf
-
-        # 3. 총 광학 두께 상한 제약
-        if (tau_sr + tau_he) > 3.5:
+        # 1. 유체역학적 제약: vmax - vphot >= 0.05c
+        if (vmax - vphot) < 0.05 or N_29 <= 0.0:
             return -np.inf
 
         return 0.0

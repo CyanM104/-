@@ -20,8 +20,7 @@ LAM_HE_10833_AA = 10833.3
 
 @numba.njit(fastmath=True)
 def alpha_tau_evolution(t_days):
-    # Dynamical Optical Depth Evolution using continuous power-law energy deposition model (E_dot ~ t^-1.3)
-    return (t_days / 1.43) ** (-1.3)
+    return 1.0
 
 @numba.njit(fastmath=True)
 def relativistic_blackbody_flam(wave_m, T_prime, beta, t0_s, n_mu=16):
@@ -158,22 +157,14 @@ def combine_optical_depths_sobolev(f_sr1, f_sr2, f_sr3, f_he, trans):
 
         tau_total = tau_abs_1 + tau_abs_2 + tau_abs_3 + tau_abs_he
 
-        # Sobolev escape probability: beta_sob = (1 - exp(-tau)) / tau (with limit tau->0 as 1)
-        if tau_total > 1e-4:
-            beta_sob = (1.0 - np.exp(-tau_total)) / tau_total
-        else:
-            beta_sob = 1.0
-
         total_absorption = np.exp(-tau_total)
 
-        # Resonant scattering emission modification
         em_1 = np.maximum(0.0, f_sr1[i] - 1.0)
         em_2 = np.maximum(0.0, f_sr2[i] - 1.0)
         em_3 = np.maximum(0.0, f_sr3[i] - 1.0)
         em_he = np.maximum(0.0, f_he[i] - 1.0)
 
-        # Applying Sobolev beta to emission probability coupling
-        total_emission = (em_1 + em_2 + em_3 + em_he) * trans * beta_sob
+        total_emission = (em_1 + em_2 + em_3 + em_he) * trans
         result[i] = total_absorption + total_emission
     return result
 

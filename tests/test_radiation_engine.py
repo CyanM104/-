@@ -80,44 +80,17 @@ def test_mcmc_probability_wrapper_priors():
         (0.0, 1.0)       # trans
     ]
 
-    # days < 2.0 (Phase < 2.0d)
-    # constraints: tau_sr >= 0.8, tau_he <= 0.35, (vmax - vphot) >= 0.08
-    wrapper_early = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, days=1.5)
+    # hydrodynamic constraint vmax - vphot >= 0.05
+    wrapper = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, days=1.5)
 
-    # Valid theta for days < 1.8 (requires tau_he <= 0.05)
-    valid_theta_early = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.04, 0.8]  # vmax-vphot = 0.1, tau_sr = 1.0, tau_he = 0.04
-    assert wrapper_early.log_prior(valid_theta_early) == 0.0
+    # Valid theta
+    valid_theta = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.2, 0.8]  # vmax-vphot = 0.1 (>= 0.05)
+    assert wrapper.log_prior(valid_theta) == 0.0
 
-    # Invalid theta for days < 1.8: tau_sr < 0.8
-    invalid_theta_tau_sr = [5000.0, 1.0, 0.3, 0.2, 0.5, 0.04, 0.8]
-    assert wrapper_early.log_prior(invalid_theta_tau_sr) == -np.inf
+    # Invalid theta: hydrodynamic constraint vmax - vphot < 0.05
+    invalid_theta_hydro = [5000.0, 1.0, 0.24, 0.2, 1.0, 0.2, 0.8] # vmax-vphot = 0.04
+    assert wrapper.log_prior(invalid_theta_hydro) == -np.inf
 
-    # Invalid theta for days < 1.8: tau_he > 0.05
-    invalid_theta_tau_he_early = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.2, 0.8]
-    assert wrapper_early.log_prior(invalid_theta_tau_he_early) == -np.inf
-
-    # Check between 1.8 and 2.0 (tau_he <= 0.35)
-    wrapper_mid_early = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, days=1.9)
-    valid_theta_mid_early = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.2, 0.8]
-    assert wrapper_mid_early.log_prior(valid_theta_mid_early) == 0.0
-
-    invalid_theta_tau_he_mid_early = [5000.0, 1.0, 0.3, 0.2, 1.0, 0.4, 0.8]
-    assert wrapper_mid_early.log_prior(invalid_theta_tau_he_mid_early) == -np.inf
-
-    # Invalid theta: hydrodynamic constraint vmax - vphot < 0.08
-    invalid_theta_hydro = [5000.0, 1.0, 0.25, 0.2, 1.0, 0.2, 0.8] # vmax-vphot = 0.05
-    assert wrapper_early.log_prior(invalid_theta_hydro) == -np.inf
-
-    # Invalid theta: tau_sr + tau_he > 3.5
-    invalid_theta_sum = [5000.0, 1.0, 0.3, 0.2, 3.4, 0.2, 0.8] # 3.4 + 0.2 = 3.6 > 3.5
-    assert wrapper_early.log_prior(invalid_theta_sum) == -np.inf
-
-    # days < 3.0 (Phase < 3.0d)
-    # constraints: tau_sr >= tau_he, (vmax - vphot) >= 0.08
-    wrapper_mid = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, days=2.5)
-
-    valid_theta_mid = [5000.0, 1.0, 0.3, 0.2, 0.8, 0.7, 0.8]
-    assert wrapper_mid.log_prior(valid_theta_mid) == 0.0
-
-    invalid_theta_mid_tau = [5000.0, 1.0, 0.3, 0.2, 0.5, 0.8, 0.8] # tau_sr < tau_he
-    assert wrapper_mid.log_prior(invalid_theta_mid_tau) == -np.inf
+    # Check phase independence of tau constraints (i.e. they shouldn't exist anymore)
+    valid_theta_high_tau = [5000.0, 1.0, 0.3, 0.2, 4.0, 3.0, 0.8]
+    assert wrapper.log_prior(valid_theta_high_tau) == 0.0

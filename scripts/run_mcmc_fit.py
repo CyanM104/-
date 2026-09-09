@@ -158,11 +158,11 @@ def main():
             "local_file": os.path.join(target_save_dir, "OB3_3.41d.dat"),
             "bounds": [
                 (2500.0, 3200.0),
-                (1.80, 3.50),
+                (1.0, 5.0),
                 (0.27, 0.37),
                 (0.17, 0.25),
-                (0.2, 2.5),
-                (0.2, 2.20),
+                (0.1, 3.0),
+                (0.0, 3.0),
                 (0.15, 1.2),
             ],
             "init_guess": [2800.0, 2.60, 0.31, 0.20, 1.20, 0.80, 0.55],
@@ -263,7 +263,7 @@ def main():
             )
             sampler.run_mcmc(pos, nsteps, progress=True)
 
-        flat_samples = sampler.get_chain(discard=2000, thin=3, flat=True)
+        flat_samples = sampler.get_chain(discard=3000, thin=15, flat=True)
 
         popt = {}
         for i in range(ndim):
