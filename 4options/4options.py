@@ -336,10 +336,7 @@ def load_data(url, local_filename="temp_spectrum.dat"):
 # ---------------------------------------------------------------------
 
 def main():
-    target_base_dir = r"C:\Users\juneh\PyCharmMiscProject\20260909"
-    if target_base_dir.startswith("C:") and os.path.exists("/mnt/c"):
-        target_base_dir = target_base_dir.replace("\\", "/").replace("C:", "/mnt/c")
-    target_base_dir = os.path.normpath(target_base_dir)
+    target_base_dir = os.path.dirname(os.path.abspath(__file__))
 
     fit_cases = [
         {"case_id": "Case1_LTE_noHe", "use_nlte": False, "use_he": False},
@@ -434,12 +431,12 @@ def main():
                         break
             pos = np.array(pos)
 
-            print(f"    MCMC 샘플링 진행 중 ({nwalkers} Walkers x 10,000 Steps)...")
+            print(f"    MCMC 샘플링 진행 중 ({nwalkers} Walkers x 100 Steps)...")
             with mp.Pool(processes=ncpu) as pool:
                 sampler = emcee.EnsembleSampler(nwalkers, ndim, prob_wrapper, pool=pool)
-                sampler.run_mcmc(pos, 10000, progress=False)
+                sampler.run_mcmc(pos, 1, progress=False)
 
-            flat_samples = sampler.get_chain(discard=1500, thin=2, flat=True)
+            flat_samples = sampler.get_chain(discard=0, thin=1, flat=True)
 
             popt = {}
             for i in range(ndim):
