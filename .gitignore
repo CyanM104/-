@@ -175,3 +175,6 @@ cython_debug/
 output/*.dat
 4options/Case*/
 4options/*.log
+output_results/
+*.dat
+*.png

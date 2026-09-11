@@ -1,55 +1,53 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 import numpy as np
-from src.radiation_engine import planck_with_mod_full_relativistic_nlte
-
+from src.models import planck_with_mod_full_relativistic
 
 class MCMCProbabilityWrapper(object):
-    def __init__(self, x_fit, y_fit, err_fit, time_s, bounds, days):
+    def __init__(self, x_fit, y_fit, err_fit, time_s, bounds, use_nlte=True, use_he=True, days=0.0):
         self.x_fit = x_fit
         self.y_fit = y_fit
         self.err_fit = err_fit
         self.time_s = time_s
         self.bounds = bounds
+        self.use_nlte = use_nlte
+        self.use_he = use_he
         self.days = days
 
     def log_prior(self, theta):
-        T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans = theta
+        if np.any(np.isnan(theta)) or np.any(np.isinf(theta)):
+            return -np.inf
+
+        if self.use_he:
+            T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans, amp1, amp2 = theta
+        else:
+            T_prime, N_29, vmax, vphot, tau_sr, trans, amp1, amp2 = theta
+            tau_he = 0.0
+
         for val, (low, high) in zip(theta, self.bounds):
             if not (low <= val <= high):
                 return -np.inf
 
-        # 1. 유체역학적 제약: 0.03 <= vmax - vphot <= 0.25c, and N_29 > 0.0
-        v_diff = vmax - vphot
-        if not (0.03 <= v_diff <= 0.25) or N_29 <= 0.0:
+        # Phase-dependent priors and hydrodynamic constraint from Physics Rules Memory
+        if vphot >= vmax - 0.08 or tau_sr <= 0.001 or N_29 <= 0.0:
             return -np.inf
 
-        # 3. [핵심] 시계열 물리적 제약 (Sr II / He I 축퇴 및 지그재그 방지)
         if self.days < 2.0:
-            # Phase +1.43d: Sr II 지배적, He I 활성화 억제
-            if tau_sr < 1.0 or tau_he > 0.25:
-                return -np.inf
-        elif self.days < 3.0:
-            # Phase +2.42d: Sr II가 He I보다 여전히 우세해야 함
-            if tau_sr < tau_he:
+            if tau_sr < 0.8 or tau_he > 0.35:
                 return -np.inf
 
         return 0.0
 
     def log_likelihood(self, theta):
-        T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans = theta
+        if self.use_he:
+            T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans, amp1, amp2 = theta
+        else:
+            T_prime, N_29, vmax, vphot, tau_sr, trans, amp1, amp2 = theta
+            tau_he = 0.0
+
         try:
-            model = planck_with_mod_full_relativistic_nlte(
-                wav=self.x_fit,
-                T_prime=T_prime,
-                N_29=N_29,
-                vmax=vmax,
-                vphot=vphot,
-                tau_sr=tau_sr,
-                tau_he=tau_he,
-                trans=trans,
-                t0=self.time_s,
+            model = planck_with_mod_full_relativistic(
+                wav=self.x_fit, T_prime=T_prime, N_29=N_29, vmax=vmax, vphot=vphot,
+                tau_sr=tau_sr, tau_he=tau_he, trans=trans, amp1=amp1, amp2=amp2,
+                t0=self.time_s, use_nlte=self.use_nlte, use_he=self.use_he
             )
             if np.any(np.isnan(model)) or np.any(np.isinf(model)):
                 return -np.inf
