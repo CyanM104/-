@@ -33,7 +33,7 @@ def plot_spectrum_fit(wave, flux, wave_grid, model_grid, days, dl_med, tau_sr, t
     plt.savefig(save_path, dpi=250)
     plt.close(fig)
 
-def plot_stacked_spectra_fit(spectra_data, results_summary, case_id, use_nlte, use_he, save_path):
+def plot_stacked_spectra_fit(spectra_data, results_summary, case_id, use_nlte, use_he, use_ltt, save_path):
     fig1, ax1 = plt.subplots(figsize=(10, 11))
     offset_step = 4.0e-16
     telluric_bands = [(5330, 5740), (9800, 10250), (13100, 14400), (17550, 19200)]
@@ -53,7 +53,7 @@ def plot_stacked_spectra_fit(spectra_data, results_summary, case_id, use_nlte, u
             wave_grid, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
             amp1=popt["amp1"], amp2=popt["amp2"], t0=sdata["days"] * 86400.0,
-            use_nlte=use_nlte, use_he=use_he
+            use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt
         )
 
         ax1.plot(sdata["wave"], sdata["flux"] + offset, color='#cccccc', alpha=0.7, lw=0.8, zorder=2)
@@ -94,7 +94,7 @@ def plot_line_profile(wave_zoom, prof_full, prof_no_occ, obs_norm, days, case_id
     plt.savefig(save_path, dpi=250)
     plt.close(fig)
 
-def plot_stacked_line_profiles(spectra_data, results_summary, case_id, use_nlte, use_he, save_path):
+def plot_stacked_line_profiles(spectra_data, results_summary, case_id, use_nlte, use_he, use_ltt, save_path):
     fig2, ax2 = plt.subplots(figsize=(11, 7.8))
     wave_zoom = np.linspace(7000, 12500, 500)
     ax2.axvspan(9650, 10300, color='gray', alpha=0.18, zorder=1)
@@ -116,12 +116,12 @@ def plot_stacked_line_profiles(spectra_data, results_summary, case_id, use_nlte,
         model_full = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt
         )
         model_no_occ = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=1.0, # trans=1.0 is no-occultation equivalent loosely for illustration
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt
         )
 
         cont_zoom = (popt["N_29"] * 1e-29) * calc_relativistic_blackbody_continuum(wave_zoom, popt["T_prime"], popt["vphot"])
@@ -175,12 +175,12 @@ def plot_optical_depth_evolution(results_summary, use_he, case_id, save_path):
     plt.savefig(save_path, dpi=250)
     plt.close(fig3)
 
-def generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he, flat_samples_dict, labels_dict, target_save_dir):
+def generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he, use_ltt, flat_samples_dict, labels_dict, target_save_dir):
     # Plot 1: Stacked spectra fit (1 plot)
-    plot_stacked_spectra_fit(spectra_data, results_summary, case_id, use_nlte, use_he, os.path.join(target_save_dir, "Plot1_Stacked_Spectra_Fit.png"))
+    plot_stacked_spectra_fit(spectra_data, results_summary, case_id, use_nlte, use_he, use_ltt, os.path.join(target_save_dir, "Plot1_Stacked_Spectra_Fit.png"))
 
     # Plot 2: Stacked line profiles (1 plot)
-    plot_stacked_line_profiles(spectra_data, results_summary, case_id, use_nlte, use_he, os.path.join(target_save_dir, "Plot2_Line_Profile_Evolution.png"))
+    plot_stacked_line_profiles(spectra_data, results_summary, case_id, use_nlte, use_he, use_ltt, os.path.join(target_save_dir, "Plot2_Line_Profile_Evolution.png"))
 
     # Plot 3: Optical depth evolution (1 plot)
     plot_optical_depth_evolution(results_summary, use_he, case_id, os.path.join(target_save_dir, "Plot3_Optical_Depth_Evolution.png"))
@@ -196,7 +196,7 @@ def generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he,
             wave_grid, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
             amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph,
-            use_nlte=use_nlte, use_he=use_he
+            use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt
         )
 
         # Plot 1 singles: 4 individual plots
@@ -207,12 +207,12 @@ def generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he,
         model_full = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt
         )
         model_no_occ = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=1.0,
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt
         )
         cont_zoom = (popt["N_29"] * 1e-29) * calc_relativistic_blackbody_continuum(wave_zoom, popt["T_prime"], popt["vphot"])
 

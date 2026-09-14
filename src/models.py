@@ -29,18 +29,18 @@ def combine_optical_depths_beer_lambert(f3, f4, f5, f_he):
 
 def planck_with_mod_full_relativistic(
         wav, T_prime, N_29, vmax, vphot, tau_sr=3.80, tau_he=0.0, trans=1.0, amp1=0.31, amp2=0.44, t0=123552.0,
-        use_nlte=True, use_he=True
+        use_nlte=True, use_he=True, use_ltt=True
 ):
     N = N_29 * 1e-29
     intensity = calc_relativistic_blackbody_continuum(wav, T_prime, vphot, n_mu=16)
 
     # Use exact ratios 0.12, 1.00, 0.58 from Physics Rules memory
-    f3 = p_cygni_line_corr_rel_1d(wav, vmax, vphot, 0.12 * tau_sr, LAM_SR_10036_AA, t0, use_nlte=use_nlte)
-    f4 = p_cygni_line_corr_rel_1d(wav, vmax, vphot, 1.00 * tau_sr, LAM_SR_10327_AA, t0, use_nlte=use_nlte)
-    f5 = p_cygni_line_corr_rel_1d(wav, vmax, vphot, 0.58 * tau_sr, LAM_SR_10914_AA, t0, use_nlte=use_nlte)
+    f3 = p_cygni_line_corr_rel_1d(wav, vmax, vphot, 0.12 * tau_sr, LAM_SR_10036_AA, t0, use_nlte=use_nlte, use_ltt=use_ltt)
+    f4 = p_cygni_line_corr_rel_1d(wav, vmax, vphot, 1.00 * tau_sr, LAM_SR_10327_AA, t0, use_nlte=use_nlte, use_ltt=use_ltt)
+    f5 = p_cygni_line_corr_rel_1d(wav, vmax, vphot, 0.58 * tau_sr, LAM_SR_10914_AA, t0, use_nlte=use_nlte, use_ltt=use_ltt)
 
     if use_he and tau_he > 0.001:
-        pcyg_he = p_cygni_line_corr_rel_1d(wav, vmax, vphot, tau_he, LAM_HE_10833_AA, t0, use_nlte=use_nlte)
+        pcyg_he = p_cygni_line_corr_rel_1d(wav, vmax, vphot, tau_he, LAM_HE_10833_AA, t0, use_nlte=use_nlte, use_ltt=use_ltt)
     else:
         pcyg_he = np.ones_like(wav)
 

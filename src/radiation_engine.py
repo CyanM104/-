@@ -47,7 +47,7 @@ def calc_z_rel(p, nu, nu0, t_ph, c):
     return ((-b - np.sqrt(discriminant)) / (2.0 * a)) * c * t_ph
 
 @numba.njit(fastmath=True)
-def calc_rel_line_profile_with_ltt(nu_arr, lam0_AA, vmax_cgs, vphot_cgs, tau_base, t_ph, c_cgs=C_CGS, n_p=40, use_nlte=True):
+def calc_rel_line_profile_with_ltt(nu_arr, lam0_AA, vmax_cgs, vphot_cgs, tau_base, t_ph, c_cgs=C_CGS, n_p=40, use_nlte=True, use_ltt=True):
     nu0 = c_cgs / (lam0_AA * 1e-8)
     R_phot = t_ph * vphot_cgs
     rmax = t_ph * vmax_cgs
@@ -68,8 +68,11 @@ def calc_rel_line_profile_with_ltt(nu_arr, lam0_AA, vmax_cgs, vphot_cgs, tau_bas
                 r = np.sqrt(p ** 2 + z ** 2)
                 mu = z / r if r > 0.0 else 0.0
 
-                d_delay = z if z > 0 else -np.sqrt(np.maximum(0.0, R_phot ** 2 - p ** 2))
-                t_det_eff = t_ph + (d_delay / c_cgs)
+                if use_ltt:
+                    d_delay = z if z > 0 else -np.sqrt(np.maximum(0.0, R_phot ** 2 - p ** 2))
+                    t_det_eff = t_ph + (d_delay / c_cgs)
+                else:
+                    t_det_eff = t_ph
 
                 tau_val = tau_powerlaw_anisotropic(r, mu, t_det_eff, R_phot, tau_base, beta_power=3.0, c=c_cgs, use_nlte=use_nlte)
                 I_init = 1.0 if p <= R_phot else 0.0

@@ -27,6 +27,7 @@ def main():
         case_id = case_cfg["case_id"]
         use_nlte = case_cfg["use_nlte"]
         use_he = case_cfg["use_he"]
+        use_ltt = case_cfg["use_ltt"]
 
         target_save_dir = os.path.join(target_base_dir, case_id)
         os.makedirs(target_save_dir, exist_ok=True)
@@ -46,7 +47,7 @@ def main():
         labels_dict = {"labels": labels, "corner_labels": corner_labels}
 
         print(f"\n========================================================")
-        print(f" [피팅 진행 케이스: {case_id} (NLTE={use_nlte}, He={use_he})]")
+        print(f" [피팅 진행 케이스: {case_id} (LTT={use_ltt}, NLTE={use_nlte}, He={use_he})]")
         print(f"========================================================\n")
 
         for p_info in phases_template:
@@ -64,7 +65,7 @@ def main():
             eff_err = np.maximum(err, 0.05 * np.abs(flux))
             x_fit, y_fit, err_fit = wave[::6], flux[::6], eff_err[::6]
 
-            prob_wrapper = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, use_nlte=use_nlte, use_he=use_he, days=days)
+            prob_wrapper = MCMCProbabilityWrapper(x_fit, y_fit, err_fit, time_s, bounds, use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt, days=days)
 
             opt_res = minimize(prob_wrapper.chi2_for_minimizer, midpoint_guess, method='Nelder-Mead',
                                options={'maxiter': 2500, 'xatol': 1e-4, 'fatol': 1e-2})
@@ -100,7 +101,7 @@ def main():
             model_fit = planck_with_mod_full_relativistic(
                 x_fit, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
                 tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-                amp1=popt["amp1"], amp2=popt["amp2"], t0=time_s, use_nlte=use_nlte, use_he=use_he
+                amp1=popt["amp1"], amp2=popt["amp2"], t0=time_s, use_nlte=use_nlte, use_he=use_he, use_ltt=use_ltt
             )
             chi2_fit = np.sum(((y_fit - model_fit) / err_fit) ** 2)
             red_chi2_fit = chi2_fit / (len(x_fit) - ndim)
@@ -118,7 +119,7 @@ def main():
             })
 
         print(f"--> [{case_id}] 시각화 플롯 15종 생성 및 저장 시작...")
-        generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he, flat_samples_dict, labels_dict, target_save_dir)
+        generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he, use_ltt, flat_samples_dict, labels_dict, target_save_dir)
 
     print("\n========================================================")
     print(" [총 4개 피팅 케이스 연산 및 각 케이스별 15종 플롯 완전 저장 완료]")

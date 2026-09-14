@@ -2,7 +2,7 @@ import numpy as np
 from src.models import planck_with_mod_full_relativistic
 
 class MCMCProbabilityWrapper(object):
-    def __init__(self, x_fit, y_fit, err_fit, time_s, bounds, use_nlte=True, use_he=True, days=0.0):
+    def __init__(self, x_fit, y_fit, err_fit, time_s, bounds, use_nlte=True, use_he=True, use_ltt=True, days=0.0):
         self.x_fit = x_fit
         self.y_fit = y_fit
         self.err_fit = err_fit
@@ -10,6 +10,7 @@ class MCMCProbabilityWrapper(object):
         self.bounds = bounds
         self.use_nlte = use_nlte
         self.use_he = use_he
+        self.use_ltt = use_ltt
         self.days = days
 
     def log_prior(self, theta):
@@ -47,7 +48,7 @@ class MCMCProbabilityWrapper(object):
             model = planck_with_mod_full_relativistic(
                 wav=self.x_fit, T_prime=T_prime, N_29=N_29, vmax=vmax, vphot=vphot,
                 tau_sr=tau_sr, tau_he=tau_he, trans=trans, amp1=amp1, amp2=amp2,
-                t0=self.time_s, use_nlte=self.use_nlte, use_he=self.use_he
+                t0=self.time_s, use_nlte=self.use_nlte, use_he=self.use_he, use_ltt=self.use_ltt
             )
             if np.any(np.isnan(model)) or np.any(np.isinf(model)):
                 return -np.inf
