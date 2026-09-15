@@ -21,7 +21,7 @@ def main():
     os.makedirs(target_base_dir, exist_ok=True)
 
     ncpu = max(1, mp.cpu_count() - 2)
-    mcmc_steps = 10000
+    mcmc_steps = 10
 
     for case_cfg in fit_cases:
         case_id = case_cfg["case_id"]
