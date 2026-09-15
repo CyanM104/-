@@ -172,9 +172,5 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-output/*.dat
 4options/Case*/
 4options/*.log
-output_results/
-*.dat
-*.png
