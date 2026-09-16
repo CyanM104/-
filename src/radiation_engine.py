@@ -72,7 +72,12 @@ def calc_rel_line_profile_with_ltt(nu_arr, lam0_AA, vmax_cgs, vphot_cgs, tau_bas
                 t_det_eff = t_ph + (d_delay / c_cgs)
 
                 tau_val = tau_powerlaw_anisotropic(r, mu, t_det_eff, R_phot, tau_base, beta_power=3.0, c=c_cgs, use_nlte=use_nlte)
-                I_init = 1.0 if p <= R_phot else 0.0
+
+                # Smooth handling of I_init across the boundary r = R_phot (or p = R_phot for projection)
+                # We use a logistic function to handle the kink smoothly instead of a hard step.
+                k = 1e5
+                I_init = 1.0 - 1.0 / (1.0 + np.exp(-k * (p / R_phot - 1.0)))
+
                 I_comoving = I_init * np.exp(-tau_val) + (1.0 - np.exp(-tau_val)) * 0.5
                 sum_val += I_comoving * (nu / nu0) ** 3 * p * w
 

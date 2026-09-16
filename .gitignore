@@ -172,5 +172,5 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-4options/Case*/
-4options/*.log
+
+!output_results/**/*.png
