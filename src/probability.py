@@ -31,7 +31,7 @@ class MCMCProbabilityWrapper(object):
             return -np.inf
 
         if self.days < 2.5:
-            if tau_sr < tau_he:
+            if not (tau_sr >= tau_he):
                 return -np.inf
 
         return 0.0

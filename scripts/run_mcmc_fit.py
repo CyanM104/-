@@ -222,7 +222,7 @@ def main():
         )
 
         ndim, nwalkers = len(bounds), 32
-        nsteps = 9000
+        nsteps = 10000
         spans = high_b - low_b
         pos = []
         for _ in range(nwalkers):
