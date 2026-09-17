@@ -17,10 +17,9 @@ from scipy import constants
 from scipy.optimize import minimize
 
 from src.probability import MCMCProbabilityWrapper
-from src.radiation_engine import (
-    calc_relativistic_blackbody_continuum,
-    planck_with_mod_full_relativistic_nlte,
-)
+from src.continuum import calc_relativistic_blackbody_continuum
+from src.models import planck_with_mod_full_relativistic
+#
 
 try:
     import corner
@@ -222,7 +221,7 @@ def main():
         )
 
         ndim, nwalkers = len(bounds), 32
-        nsteps = 9000
+        nsteps = 10000
         spans = high_b - low_b
         pos = []
         for _ in range(nwalkers):
