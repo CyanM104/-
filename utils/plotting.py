@@ -52,7 +52,7 @@ def plot_stacked_spectra_fit(spectra_data, results_summary, case_id, use_nlte, u
         model_grid = planck_with_mod_full_relativistic(
             wave_grid, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=sdata["days"] * 86400.0,
+             t0=sdata["days"] * 86400.0,
             use_nlte=use_nlte, use_he=use_he
         )
 
@@ -75,7 +75,7 @@ def plot_stacked_spectra_fit(spectra_data, results_summary, case_id, use_nlte, u
 
 def plot_line_profile(wave_zoom, prof_full, prof_no_occ, obs_norm, days, case_id, save_path):
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.axvspan(9650, 10300, color='gray', alpha=0.18, zorder=1)
+    ax.axvspan(9950, 10250, color='gray', alpha=0.18, zorder=1)
     ax.axhline(1.0, color='black', ls=':', lw=1.1, zorder=2, label='Normalized Continuum (1.0)')
     ax.axvline(10327.311, color='slateblue', ls='-.', lw=1.2, zorder=2, label=r'Rest $\mathrm{Sr\ II}\ (1.0327\mu\mathrm{m})$')
     ax.axvline(10833.3, color='forestgreen', ls='-.', lw=1.2, zorder=2, label=r'Rest $\mathrm{He\ I}\ (1.0833\mu\mathrm{m})$')
@@ -116,12 +116,12 @@ def plot_stacked_line_profiles(spectra_data, results_summary, case_id, use_nlte,
         model_full = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+             t0=t_ph, use_nlte=use_nlte, use_he=use_he
         )
         model_no_occ = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=1.0, # trans=1.0 is no-occultation equivalent loosely for illustration
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+             t0=t_ph, use_nlte=use_nlte, use_he=use_he
         )
 
         cont_zoom = (popt["N_29"] * 1e-29) * calc_relativistic_blackbody_continuum(wave_zoom, popt["T_prime"], popt["vphot"])
@@ -195,7 +195,7 @@ def generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he,
         model_grid = planck_with_mod_full_relativistic(
             wave_grid, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph,
+             t0=t_ph,
             use_nlte=use_nlte, use_he=use_he
         )
 
@@ -207,12 +207,12 @@ def generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he,
         model_full = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+             t0=t_ph, use_nlte=use_nlte, use_he=use_he
         )
         model_no_occ = planck_with_mod_full_relativistic(
             wave_zoom, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
             tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=1.0,
-            amp1=popt["amp1"], amp2=popt["amp2"], t0=t_ph, use_nlte=use_nlte, use_he=use_he
+             t0=t_ph, use_nlte=use_nlte, use_he=use_he
         )
         cont_zoom = (popt["N_29"] * 1e-29) * calc_relativistic_blackbody_continuum(wave_zoom, popt["T_prime"], popt["vphot"])
 

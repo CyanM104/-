@@ -17,7 +17,7 @@ def load_data(url, local_filename="temp_spectrum.dat"):
             if wave.max() < 3000:
                 wave = wave * 10.0
             exc_reg = (~((wave > 13100) & (wave < 14400))) & (~((wave > 17550) & (wave < 19200))) & (
-                ~((wave > 5330) & (wave < 5740))) & (~((wave > 9840) & (wave < 10300))) & (wave >= 3800) & (wave <= 21500)
+                ~((wave > 5330) & (wave < 5740))) & (~((wave > 9950) & (wave < 10250))) & (wave >= 3800) & (wave <= 21500)
             return wave[exc_reg], flux[exc_reg], err[exc_reg]
         except Exception:
             pass
@@ -40,5 +40,5 @@ def load_data(url, local_filename="temp_spectrum.dat"):
     if wave.max() < 3000:
         wave = wave * 10.0
     exc_reg = (~((wave > 13100) & (wave < 14400))) & (~((wave > 17550) & (wave < 19200))) & (
-        ~((wave > 5330) & (wave < 5740))) & (~((wave > 9840) & (wave < 10300))) & (wave >= 3800) & (wave <= 21500)
+        ~((wave > 5330) & (wave < 5740))) & (~((wave > 9950) & (wave < 10250))) & (wave >= 3800) & (wave <= 21500)
     return wave[exc_reg], flux[exc_reg], err[exc_reg]

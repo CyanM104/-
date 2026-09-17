@@ -7,10 +7,12 @@ import numpy as np
 from scipy.optimize import minimize
 import emcee
 import warnings
+import json
+import numpy as np
 
 from config.settings import fit_cases, phases_template
 from src.data_loader import load_data
-from src.mcmc_wrapper import MCMCProbabilityWrapper
+from src.probability import MCMCProbabilityWrapper
 from src.models import planck_with_mod_full_relativistic, lum_dist_arr
 from utils.plotting import generate_all_plots
 
@@ -32,13 +34,13 @@ def main():
         os.makedirs(target_save_dir, exist_ok=True)
 
         if use_he:
-            labels = ["T_prime", "N_29", "vmax", "vphot", "tau_sr", "tau_he", "trans", "amp1", "amp2"]
+            labels = ["T_prime", "N_29", "vmax", "vphot", "tau_sr", "tau_he", "trans"]
             corner_labels = [r"$T^\prime$", r"$N_{29}$", r"$v_{\max}$", r"$v_{\text{phot}}$", r"$\tau_{\text{Sr II}}$",
-                             r"$\tau_{\text{He I}}$", r"$\text{trans}$", r"$\text{amp}_1$", r"$\text{amp}_2$"]
+                             r"$\tau_{\text{He I}}$", r"$\text{trans}$"]
         else:
-            labels = ["T_prime", "N_29", "vmax", "vphot", "tau_sr", "trans", "amp1", "amp2"]
+            labels = ["T_prime", "N_29", "vmax", "vphot", "tau_sr", "trans"]
             corner_labels = [r"$T^\prime$", r"$N_{29}$", r"$v_{\max}$", r"$v_{\text{phot}}$", r"$\tau_{\text{Sr II}}$",
-                             r"$\text{trans}$", r"$\text{amp}_1$", r"$\text{amp}_2$"]
+                             r"$\text{trans}$"]
 
         results_summary = []
         spectra_data = []
@@ -100,7 +102,7 @@ def main():
             model_fit = planck_with_mod_full_relativistic(
                 x_fit, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
                 tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"],
-                amp1=popt["amp1"], amp2=popt["amp2"], t0=time_s, use_nlte=use_nlte, use_he=use_he
+                 t0=time_s, use_nlte=use_nlte, use_he=use_he
             )
             chi2_fit = np.sum(((y_fit - model_fit) / err_fit) ** 2)
             red_chi2_fit = chi2_fit / (len(x_fit) - ndim)
@@ -110,6 +112,31 @@ def main():
 
             print(f"    결과 요약 [{label}]: Red.Chi2={red_chi2_fit:.2f} | D_L={dl_med:.2f} Mpc | T'={popt['T_prime']:.0f}K\n")
 
+            epoch_summary = {
+                "days": float(days),
+                "label": str(label),
+                "reduced_chi2": float(red_chi2_fit),
+                "luminosity_distance_mpc": {
+                    "median": float(np.median(dl_samples)),
+                    "lower_1sigma": float(np.percentile(dl_samples, 16)),
+                    "upper_1sigma": float(np.percentile(dl_samples, 84))
+                },
+                "parameters": {
+                    name: {
+                        "median": float(np.percentile(flat_samples[:, i], 50)),
+                        "lower_1sigma": float(np.percentile(flat_samples[:, i], 16)),
+                        "upper_1sigma": float(np.percentile(flat_samples[:, i], 84))
+                    }
+                    for i, name in enumerate(labels)
+                }
+            }
+            if "epoch_summaries" not in locals() or (len(epoch_summaries) > 0 and epoch_summaries[-1]["days"] >= days):
+                epoch_summaries = [] # reset for new case
+            epoch_summaries.append(epoch_summary)
+
+            # Save flat samples for future plotting
+            np.save(os.path.join(target_save_dir, f"samples_{days:.3f}d.npy"), flat_samples)
+
             results_summary.append({
                 "days": days, "label": label, "popt": popt, "red_chi2": red_chi2_fit, "dl_med": dl_med
             })
@@ -117,8 +144,32 @@ def main():
                 "days": days, "label": label, "wave": wave, "flux": flux, "x_fit": x_fit, "model_fit": model_fit
             })
 
-        print(f"--> [{case_id}] 시각화 플롯 15종 생성 및 저장 시작...")
-        generate_all_plots(spectra_data, results_summary, case_id, use_nlte, use_he, flat_samples_dict, labels_dict, target_save_dir)
+        print(f"--> [{case_id}] MCMC Run completed. Saving lightweight data...")
+        with open(os.path.join(target_save_dir, 'fit_summary_all.json'), 'w') as f:
+            json.dump(epoch_summaries, f, indent=4)
+
+        def make_serializable(obj):
+            if isinstance(obj, np.ndarray): return obj.tolist()
+            if isinstance(obj, dict): return {k: make_serializable(v) for k, v in obj.items()}
+            if isinstance(obj, list): return [make_serializable(v) for v in obj]
+            if isinstance(obj, (np.int32, np.int64)): return int(obj)
+            if isinstance(obj, (np.float32, np.float64)): return float(obj)
+            return obj
+
+        with open(os.path.join(target_save_dir, 'spectra_data.json'), 'w') as f:
+            json.dump(make_serializable(spectra_data), f)
+
+        with open(os.path.join(target_save_dir, 'labels_dict.json'), 'w') as f:
+            json.dump(make_serializable(labels_dict), f)
+
+        with open(os.path.join(target_save_dir, 'results_summary.json'), 'w') as f:
+            json.dump(make_serializable(results_summary), f)
+
+        for sd in spectra_data:
+            d = sd["days"]
+            csv_file = os.path.join(target_save_dir, f"spectral_summary_{d:.2f}d.csv")
+            np.savetxt(csv_file, np.column_stack((sd["wave"], sd["flux"])), delimiter=",", header="wave,flux")
+
 
     print("\n========================================================")
     print(" [총 4개 피팅 케이스 연산 및 각 케이스별 15종 플롯 완전 저장 완료]")

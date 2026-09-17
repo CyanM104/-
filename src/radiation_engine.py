@@ -75,10 +75,21 @@ def calc_rel_line_profile_with_ltt(nu_arr, lam0_AA, vmax_cgs, vphot_cgs, tau_bas
 
                 # Smooth handling of I_init across the boundary r = R_phot (or p = R_phot for projection)
                 # We use a logistic function to handle the kink smoothly instead of a hard step.
-                k = 1e5
+                k = 50.0
                 I_init = 1.0 - 1.0 / (1.0 + np.exp(-k * (p / R_phot - 1.0)))
 
-                I_comoving = I_init * np.exp(-tau_val) + (1.0 - np.exp(-tau_val)) * 0.5
+                if r <= R_phot:
+                    W = 0.5
+                else:
+                    mu_phot = np.sqrt(1.0 - (R_phot / r)**2)
+                    beta_loc = (r / t_ph) / c_cgs
+                    W = 0.5 * (1.0 - (mu_phot - beta_loc) / (1.0 - beta_loc * mu_phot))
+                    W = np.maximum(0.0, np.minimum(0.5, W))
+
+                if z < 0.0 and p <= R_phot:
+                    I_comoving = 0.0
+                else:
+                    I_comoving = I_init * np.exp(-tau_val) + (1.0 - np.exp(-tau_val)) * W
                 sum_val += I_comoving * (nu / nu0) ** 3 * p * w
 
         fnu[i] = 2.0 * np.pi * sum_val * dp
