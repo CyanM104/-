@@ -17,9 +17,9 @@ class MCMCProbabilityWrapper(object):
             return -np.inf
 
         if self.use_he:
-            T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans, amp1, amp2 = theta
+            T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans = theta
         else:
-            T_prime, N_29, vmax, vphot, tau_sr, trans, amp1, amp2 = theta
+            T_prime, N_29, vmax, vphot, tau_sr, trans = theta
             tau_he = 0.0
 
         for val, (low, high) in zip(theta, self.bounds):
@@ -27,26 +27,26 @@ class MCMCProbabilityWrapper(object):
                 return -np.inf
 
         # Phase-dependent priors and hydrodynamic constraint from Physics Rules Memory
-        if vphot >= vmax - 0.08 or tau_sr <= 0.001 or N_29 <= 0.0:
+        if vphot >= vmax - 0.03 or tau_sr <= 0.001 or N_29 <= 0.0:
             return -np.inf
 
-        if self.days < 2.0:
-            if tau_sr < 0.8 or tau_he > 0.35:
+        if self.days < 2.5:
+            if tau_sr < tau_he:
                 return -np.inf
 
         return 0.0
 
     def log_likelihood(self, theta):
         if self.use_he:
-            T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans, amp1, amp2 = theta
+            T_prime, N_29, vmax, vphot, tau_sr, tau_he, trans = theta
         else:
-            T_prime, N_29, vmax, vphot, tau_sr, trans, amp1, amp2 = theta
+            T_prime, N_29, vmax, vphot, tau_sr, trans = theta
             tau_he = 0.0
 
         try:
             model = planck_with_mod_full_relativistic(
                 wav=self.x_fit, T_prime=T_prime, N_29=N_29, vmax=vmax, vphot=vphot,
-                tau_sr=tau_sr, tau_he=tau_he, trans=trans, amp1=amp1, amp2=amp2,
+                tau_sr=tau_sr, tau_he=tau_he, trans=trans,
                 t0=self.time_s, use_nlte=self.use_nlte, use_he=self.use_he
             )
             if np.any(np.isnan(model)) or np.any(np.isinf(model)):

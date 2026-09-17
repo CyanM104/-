@@ -174,3 +174,7 @@ cython_debug/
 .pypirc
 
 !output_results/**/*.png
+
+# Ignore heavy numpy binary arrays
+output_results/**/*.npy
+output_results/**/*.npz

@@ -7,6 +7,8 @@ import os
 import re
 import urllib.request
 import warnings
+import json
+import numpy as np
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -278,306 +280,75 @@ def main():
         )
         dl_med = np.median(dl_samples)
 
+        # Compute chi2 for current best fit
+        t_ph = days * 86400.0
+        model_fit = planck_with_mod_full_relativistic(
+            x_fit, popt["T_prime"], popt["N_29"], popt["vmax"], popt["vphot"],
+            tau_sr=popt["tau_sr"], tau_he=popt["tau_he"], trans=popt["trans"], t0=t_ph
+        )
+        chi2_fit = np.sum(((y_fit - model_fit) / err_fit) ** 2)
+        red_chi2_fit = chi2_fit / (len(x_fit) - ndim)
+
+        print(f"    결과 요약 [{label}]: Red.Chi2={red_chi2_fit:.2f} | D_L={dl_med:.2f} Mpc | T'={popt['T_prime']:.0f}K\n")
+
+        epoch_summary = {
+            "days": float(days),
+            "label": str(label),
+            "reduced_chi2": float(red_chi2_fit),
+            "luminosity_distance_mpc": {
+                "median": float(np.median(dl_samples)),
+                "lower_1sigma": float(np.percentile(dl_samples, 16)),
+                "upper_1sigma": float(np.percentile(dl_samples, 84))
+            },
+            "parameters": {
+                name: {
+                    "median": float(np.percentile(flat_samples[:, i], 50)),
+                    "lower_1sigma": float(np.percentile(flat_samples[:, i], 16)),
+                    "upper_1sigma": float(np.percentile(flat_samples[:, i], 84))
+                }
+                for i, name in enumerate(labels)
+            }
+        }
+        if "epoch_summaries" not in locals():
+            epoch_summaries = []
+        epoch_summaries.append(epoch_summary)
+
+        # Save flat samples for future plotting
+        np.save(os.path.join(target_save_dir, f"samples_{days:.3f}d.npy"), flat_samples)
+
         results_summary.append(
-            {"days": days, "label": label, "popt": popt, "dl_med": dl_med}
+            {"days": days, "label": label, "popt": popt, "red_chi2": red_chi2_fit, "dl_med": dl_med}
         )
         spectra_data.append(
-            {"days": days, "label": label, "wave": wave, "flux": flux}
+            {"days": days, "label": label, "wave": wave, "flux": flux, "x_fit": x_fit, "model_fit": model_fit}
         )
 
-    # 시각화 플롯 렌더링
-    print("--> 시각화 플롯 생성 및 저장 중...")
+    print(f"--> MCMC Run completed. Saving lightweight data...")
+    with open(os.path.join(target_save_dir, 'fit_summary_all.json'), 'w') as f:
+        json.dump(epoch_summaries, f, indent=4)
 
-    masked_regions = [
-        (5330, 5740, "Telluric/Noise"),
-        (9950, 10250, "Telluric/Noise"),
-        (13100, 14400, "Telluric Band"),
-        (17550, 19200, "Telluric Band"),
-    ]
+    def make_serializable(obj):
+        if isinstance(obj, np.ndarray): return obj.tolist()
+        if isinstance(obj, dict): return {k: make_serializable(v) for k, v in obj.items()}
+        if isinstance(obj, list): return [make_serializable(v) for v in obj]
+        if isinstance(obj, (np.int32, np.int64)): return int(obj)
+        if isinstance(obj, (np.float32, np.float64)): return float(obj)
+        return obj
 
-    fig1, ax1 = plt.subplots(figsize=(11, 12))
-    offset_step = 4.0e-16
-    max_flux_val = 0.0
+    with open(os.path.join(target_save_dir, 'spectra_data.json'), 'w') as f:
+        json.dump(make_serializable(spectra_data), f)
 
-    for idx, (m_start, m_end, m_label) in enumerate(masked_regions):
-        ax1.axvspan(m_start, m_end, color="gray", alpha=0.18, zorder=1)
-        if idx == 2 or idx == 3:
-            ax1.text(
-                (m_start + m_end) / 2.0,
-                1.55e-15,
-                m_label,
-                rotation=90,
-                ha="center",
-                va="top",
-                fontsize=8.5,
-                color="dimgray",
-                alpha=0.8,
-            )
+    labels_dict = {"labels": labels, "corner_labels": corner_labels}
+    with open(os.path.join(target_save_dir, 'labels_dict.json'), 'w') as f:
+        json.dump(make_serializable(labels_dict), f)
 
-    for idx, sdata in enumerate(spectra_data):
-        res = results_summary[idx]
-        popt = res["popt"]
-        offset = (len(spectra_data) - 1 - idx) * offset_step
+    with open(os.path.join(target_save_dir, 'results_summary.json'), 'w') as f:
+        json.dump(make_serializable(results_summary), f)
 
-        wave_grid = np.linspace(3800, 21500, 1200)
-        model_grid = planck_with_mod_full_relativistic_nlte(
-            wave_grid,
-            popt["T_prime"],
-            popt["N_29"],
-            popt["vmax"],
-            popt["vphot"],
-            tau_sr=popt["tau_sr"],
-            tau_he=popt["tau_he"],
-            trans=popt["trans"],
-            t0=sdata["days"] * 86400.0,
-        )
-
-        current_max = np.max(model_grid + offset)
-        if current_max > max_flux_val:
-            max_flux_val = current_max
-
-        ax1.plot(
-            sdata["wave"],
-            sdata["flux"] + offset,
-            color="gray",
-            alpha=0.35,
-            lw=0.8,
-            zorder=2,
-        )
-        ax1.plot(
-            wave_grid,
-            model_grid + offset,
-            color="crimson",
-            lw=2.0,
-            zorder=3,
-            label=rf"{sdata['label']}: $D_L={res['dl_med']:.1f}\mathrm{{Mpc}}$, $\tau_{{\mathrm{{Sr}}}}={popt['tau_sr']:.2f}, \tau_{{\mathrm{{He}}}}={popt['tau_he']:.2f}$",
-        )
-
-        ax1.text(
-            4000,
-            offset + 0.4e-16,
-            f"+{sdata['days']}d",
-            fontsize=13,
-            fontweight="bold",
-            color="black",
-        )
-
-    ax1.set_xlim(3500, 22000)
-    ax1.set_ylim(-0.5e-16, max_flux_val * 1.15)
-    ax1.set_xlabel("Rest Wavelength [Å]", fontsize=13)
-    ax1.set_ylabel(r"Flux [$erg / s / cm^2 / \AA$] + Offset", fontsize=13)
-    ax1.set_title(
-        "AT2017gfo Pure NLTE Fit (Arya+2026 Compliant with Masked Regions)",
-        fontsize=14,
-        fontweight="bold",
-    )
-    ax1.legend(loc="upper right", fontsize=9.5)
-    ax1.grid(True, alpha=0.25)
-    plt.tight_layout()
-    plot1_path = os.path.join(
-        target_save_dir, "Plot1_Stacked_NLTE_Spectra_Fit_Masked.png"
-    )
-    plt.savefig(plot1_path, dpi=250)
-    plt.close(fig1)
-
-    # PLOT 2
-    fig2, ax2 = plt.subplots(figsize=(11, 7))
-    wave_zoom = np.linspace(7000, 12500, 800)
-    color_map = {
-        1.427: "#1f77b4",
-        2.417: "#ff7f0e",
-        3.413: "#2ca02c",
-        4.403: "#d62728",
-    }
-
-    for m_start, m_end, m_label in masked_regions:
-        if m_end >= 7000 and m_start <= 12500:
-            ax2.axvspan(m_start, m_end, color="gray", alpha=0.2, zorder=1)
-            ax2.text(
-                (m_start + m_end) / 2.0,
-                1.48,
-                "Masked",
-                rotation=0,
-                ha="center",
-                va="top",
-                fontsize=9,
-                color="dimgray",
-                fontweight="bold",
-                alpha=0.7,
-            )
-
-    for idx, sdata in enumerate(spectra_data):
-        res = results_summary[idx]
-        popt = res["popt"]
-        t_ph = sdata["days"] * 86400.0
-        c_color = color_map.get(sdata["days"], "black")
-
-        model_full = planck_with_mod_full_relativistic_nlte(
-            wave_zoom,
-            popt["T_prime"],
-            popt["N_29"],
-            popt["vmax"],
-            popt["vphot"],
-            tau_sr=popt["tau_sr"],
-            tau_he=popt["tau_he"],
-            trans=popt["trans"],
-            t0=t_ph,
-        )
-
-        model_sr = planck_with_mod_full_relativistic_nlte(
-            wave_zoom,
-            popt["T_prime"],
-            popt["N_29"],
-            popt["vmax"],
-            popt["vphot"],
-            tau_sr=popt["tau_sr"],
-            tau_he=0.0,
-            trans=popt["trans"],
-            t0=t_ph,
-        )
-
-        cont_zoom = (popt["N_29"] * 1e-29) * calc_relativistic_blackbody_continuum(
-            wave_zoom, popt["T_prime"], popt["vphot"], t_ph
-        )
-
-        norm_full = model_full / cont_zoom
-        norm_sr = model_sr / cont_zoom
-
-        ax2.plot(
-            wave_zoom,
-            norm_full,
-            color=c_color,
-            ls="-",
-            lw=2.2,
-            zorder=3,
-            label=rf"+{sdata['days']:.2f}d (Full Fit: $\tau_{{\mathrm{{Sr}}}}={popt['tau_sr']:.2f}, \tau_{{\mathrm{{He}}}}={popt['tau_he']:.2f}$)",
-        )
-        ax2.plot(
-            wave_zoom,
-            norm_sr,
-            color=c_color,
-            ls="--",
-            lw=1.2,
-            alpha=0.65,
-            zorder=2,
-            label=rf"+{sdata['days']:.2f}d (Pure $\mathrm{{Sr\ II}}$)",
-        )
-
-    ax2.axhline(
-        1.0,
-        color="black",
-        ls=":",
-        lw=1.5,
-        alpha=0.7,
-        label="Normalized Continuum (1.0)",
-    )
-    ax2.axvline(
-        10327.311,
-        color="navy",
-        ls="-.",
-        alpha=0.5,
-        label=r"Rest $\mathrm{Sr\ II}\ (1.0327\mu\mathrm{m})$",
-    )
-    ax2.axvline(
-        10833.3,
-        color="darkgreen",
-        ls="-.",
-        alpha=0.5,
-        label=r"Rest $\mathrm{He\ I}\ (1.0833\mu\mathrm{m})$",
-    )
-
-    ax2.set_xlim(7000, 12500)
-    ax2.set_ylim(0.30, 1.55)
-    ax2.set_xlabel(r"Rest Wavelength [$\AA$]", fontsize=13)
-    ax2.set_ylabel(r"Normalized Flux ($F_{\lambda} / F_{\text{cont}}$)", fontsize=13)
-    ax2.set_title(
-        r"AT2017gfo Normalized Line Profile Evolution ($7000\AA - 12500\AA$ Overlaid)",
-        fontsize=14,
-        fontweight="bold",
-    )
-
-    ax2.legend(
-        loc="lower left",
-        fontsize=8.0,
-        ncol=2,
-        frameon=True,
-        facecolor="white",
-        framealpha=0.9,
-    )
-    ax2.grid(True, alpha=0.25)
-    plt.tight_layout()
-
-    plot2_path = os.path.join(
-        target_save_dir, "Plot2_Normalized_Line_Profile_7000AA_Masked.png"
-    )
-    plt.savefig(plot2_path, dpi=250)
-    plt.close(fig2)
-
-    # PLOT 3
-    days_arr = [r["days"] for r in results_summary]
-    tau_sr_arr = [r["popt"]["tau_sr"] for r in results_summary]
-    tau_he_arr = [r["popt"]["tau_he"] for r in results_summary]
-
-    fig3, ax3 = plt.subplots(figsize=(8, 5))
-    ax3.plot(
-        days_arr,
-        tau_sr_arr,
-        "o-",
-        color="royalblue",
-        ms=8,
-        lw=2.2,
-        label=r"$\mathrm{Sr\ II}$ Optical Depth ($\tau_{\mathrm{Sr}}$)",
-    )
-    ax3.plot(
-        days_arr,
-        tau_he_arr,
-        "s--",
-        color="darkgreen",
-        ms=8,
-        lw=2.2,
-        label=r"$\mathrm{He\ I}$ Optical Depth ($\tau_{\mathrm{He}}$)",
-    )
-
-    for d, ts, th in zip(days_arr, tau_sr_arr, tau_he_arr):
-        ax3.annotate(
-            f"{ts:.2f}",
-            (d, ts),
-            textcoords="offset points",
-            xytext=(0, 8),
-            ha="center",
-            fontweight="bold",
-            color="royalblue",
-        )
-        ax3.annotate(
-            f"{th:.2f}",
-            (d, th),
-            textcoords="offset points",
-            xytext=(0, -15),
-            ha="center",
-            fontweight="bold",
-            color="darkgreen",
-        )
-
-    ax3.set_xlabel("Phase [Days post-merger]", fontsize=13)
-    ax3.set_ylabel(r"Optical Depth ($\tau$)", fontsize=13)
-    ax3.set_title(
-        r"Temporal Evolution of $\tau_{\mathrm{Sr\ II}}$ and $\tau_{\mathrm{He\ I}}$ (Pure NLTE)",
-        fontsize=14,
-        fontweight="bold",
-    )
-    ax3.legend(loc="upper left", fontsize=10)
-    ax3.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plot3_path = os.path.join(
-        target_save_dir, "Plot3_Optical_Depth_Evolution_NLTE.png"
-    )
-    plt.savefig(plot3_path, dpi=250)
-    plt.close(fig3)
-
-    print(f"\n========================================================")
-    print(f" [피팅 및 시각화 저장 완료]")
-    print(f" 저장 경로: {target_save_dir}")
-    print(f"========================================================\n")
+    for sd in spectra_data:
+        d = sd["days"]
+        csv_file = os.path.join(target_save_dir, f"spectral_summary_{d:.2f}d.csv")
+        np.savetxt(csv_file, np.column_stack((sd["wave"], sd["flux"])), delimiter=",", header="wave,flux")
 
 
 if __name__ == "__main__":

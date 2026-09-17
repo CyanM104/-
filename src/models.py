@@ -6,29 +6,27 @@ from src.line_profiles import p_cygni_line_corr_rel_1d, get_combined_pcygni_prof
 from config.settings import CEN1_AA, SIG1_AA, CEN2_AA, SIG2_AA, LAM_SR_10036_AA, LAM_SR_10327_AA, LAM_SR_10914_AA, LAM_HE_10833_AA
 
 @numba.njit(fastmath=True)
-def combine_optical_depths_beer_lambert(f3, f4, f5, f_he):
+def combine_optical_depths_beer_lambert(f3, f4, f5, f_he, trans):
     n = len(f3)
     result = np.zeros(n)
     for i in range(n):
-        tau3 = -np.log(np.maximum(1e-10, f3[i])) if f3[i] <= 1.0 else 0.0
-        tau4 = -np.log(np.maximum(1e-10, f4[i])) if f4[i] <= 1.0 else 0.0
-        tau5 = -np.log(np.maximum(1e-10, f5[i])) if f5[i] <= 1.0 else 0.0
-        tau_he = -np.log(np.maximum(1e-10, f_he[i])) if f_he[i] <= 1.0 else 0.0
-
-        sum_tau = tau3 + tau4 + tau5 + tau_he
+        tau3 = -np.log(np.maximum(1e-10, min(1.0, f3[i])))
+        tau4 = -np.log(np.maximum(1e-10, min(1.0, f4[i])))
+        tau5 = -np.log(np.maximum(1e-10, min(1.0, f5[i])))
+        tau_he = -np.log(np.maximum(1e-10, min(1.0, f_he[i])))
+        total_tau = tau3 + tau4 + tau5 + tau_he
 
         em3 = np.maximum(0.0, f3[i] - 1.0)
         em4 = np.maximum(0.0, f4[i] - 1.0)
         em5 = np.maximum(0.0, f5[i] - 1.0)
         em_he = np.maximum(0.0, f_he[i] - 1.0)
+        total_em = (em3 + em4 + em5 + em_he) * trans
 
-        sum_em = em3 + em4 + em5 + em_he
-
-        result[i] = np.exp(-sum_tau) + sum_em
+        result[i] = np.exp(-total_tau) + total_em
     return result
 
 def planck_with_mod_full_relativistic(
-        wav, T_prime, N_29, vmax, vphot, tau_sr=3.80, tau_he=0.0, trans=1.0, amp1=0.31, amp2=0.44, t0=123552.0,
+        wav, T_prime, N_29, vmax, vphot, tau_sr=3.80, tau_he=0.0, trans=1.0, t0=123552.0,
         use_nlte=True, use_he=True
 ):
     N = N_29 * 1e-29
@@ -45,14 +43,9 @@ def planck_with_mod_full_relativistic(
         pcyg_he = np.ones_like(wav)
 
     # Use Beer-Lambert exponential combination per Physics Rules memory
-    total_line_corr = combine_optical_depths_beer_lambert(f3, f4, f5, pcyg_he)
-    mask_emission = total_line_corr > 1.0
-    total_line_corr[mask_emission] = (total_line_corr[mask_emission] - 1.0) * trans + 1.0
+    total_line_corr = combine_optical_depths_beer_lambert(f3, f4, f5, pcyg_he, trans)
 
-    gauss1 = amp1 * np.exp(-0.5 * ((wav - CEN1_AA) / SIG1_AA) ** 2)
-    gauss2 = amp2 * np.exp(-0.5 * ((wav - CEN2_AA) / SIG2_AA) ** 2)
-
-    total_mod = total_line_corr + gauss1 + gauss2
+    total_mod = total_line_corr
     return N * intensity * total_mod
 
 
