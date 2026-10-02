@@ -1,0 +1,6 @@
+output/*.npz
+output/*.npy
+output/*.h5
+!output/*.json
+!output/*.csv
+!output/*.png
