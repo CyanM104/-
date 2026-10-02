@@ -1,0 +1,8 @@
+numpy
+scipy
+astropy
+synphot
+numba
+jax
+jaxlib
+matplotlib
