@@ -1,9 +1,14 @@
 import numpy as np
 import sys
 import os
+import argparse
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.models import synthesize_kilonova_spectrum
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--output_dir', type=str, default='output/exact_3d_nlte/')
+args = parser.parse_args()
 
 print("Starting reproduction script...")
 wav_grid_AA = np.linspace(3000, 25000, 100)
